@@ -12,15 +12,15 @@ var explor = "spy";
 var attackTranslated = "Attack";
 
 
-// var baseUnitSpeed = {
-// "Noble" : 35,
-//         "B\351lier" : 30,
-//         "\311p\351e" : 22,
-//         "Hache" : 18,
-//         "Lourd" : 11,
-//         "L\351ger" : 10,
-//         "\311claireur" : 9,
-// }
+var baseUnitSpeed = {
+    "Noble" : 35,
+    "B\351lier" : 30,
+    "\311p\351e" : 22,
+    "Hache" : 18,
+    "Lourd" : 11,
+    "L\351ger" : 10,
+    "\311claireur" : 9,
+}
 var baseUnitSpeed = {
     "noble" : 35,
     "ram" : 30,
@@ -61,6 +61,40 @@ else if(domain.includes("tribalwars.net") || domain.includes("tribalwars.co.uk")
         "hcav" : 11,
         "lcav" : 10,
         "spy" : 9,
+    }
+}
+else if(domain.includes("guerretribale.fr")){
+    tomorrowTranslated = "Demain";
+    atTranslated = "le";
+    prevUnit = "Noble";
+    explor = "\311claireur";
+    attackTranslated = "Attaque";
+
+    baseUnitSpeed = {
+        "Noble" : 35,
+        "B\351lier" : 30,
+        "\311p\351e" : 22,
+        "Hache" : 18,
+        "Lourd" : 11,
+        "L\351ger" : 10,
+        "\311claireur" : 9,
+    }
+}
+else if(domain.includes("triburile.ro")){
+    tomorrowTranslated = "mâine";
+    atTranslated = "la";
+    prevUnit = "GN";
+    explor = "Spionează";
+    attackTranslated = "Atac";
+
+    baseUnitSpeed = {
+        "GN" : 35,
+        "Berbec" : 30,
+        "Spadă" : 22,
+        "Topor" : 18,
+        "HCav" : 11,
+        "LCav" : 10,
+        "Spionează" : 9,
     }
 }
 else if(domain.includes("guerrastribales.es")){
@@ -114,6 +148,124 @@ else if(domain.includes("fyletikesmaxes.gr")){
         "Ανιχνευτής" : 9,
     }
 }
+else if(domain.includes("divokekmeny.cz")){
+    tomorrowTranslated = "zítřek";
+    atTranslated = "v";
+    prevUnit = "Šlechta";
+    explor = "Špeh";
+    attackTranslated = "Útok";
+
+    baseUnitSpeed = {
+        "Šlechta" : 35,
+        "Beranidlo" : 30,
+        "Meč" : 22,
+        "Sekera" : 18,
+        "TK" : 11,
+        "LK" : 10,
+        "Špeh" : 9,
+    }
+}
+else if(domain.includes("plemiona.pl")){
+    tomorrowTranslated = "jutro";
+    atTranslated = "o";
+    prevUnit = "Szlachcic";
+    explor = "Zwiad";
+    attackTranslated = "Atak";
+
+    baseUnitSpeed = {
+        "Szlachcic" : 35,
+        "Taran" : 30,
+        "Miecz" : 22,
+        "Topór" : 18,
+        "CK" : 11,
+        "LK" : 10,
+        "Zwiad" : 9,
+    }
+}
+else if(domain.includes("voynaplemyon.com")){
+    tomorrowTranslated = "завтра";
+    atTranslated = "om";
+    prevUnit = "Дворянин";
+    explor = "Лазутчик";
+    attackTranslated = "Атака";
+
+    baseUnitSpeed = {
+        "Дворянин" : 35,
+        "Таран" : 30,
+        "Меч" : 22,
+        "Топор" : 18,
+        "ТКав" : 11,
+        "ЛКав" : 10,
+        "Лазутчик" : 9,
+    }
+}
+else if(domain.includes("klanhaboru.hu")){
+    tomorrowTranslated = "holnap"; // talvez n
+    atTranslated = "om";
+    prevUnit = "FN";
+    explor = "Kém";
+    attackTranslated = "Támadás";
+
+    baseUnitSpeed = {
+        "FN" : 35,
+        "Kos" : 30,
+        "Kard" : 22,
+        "Bárdos" : 18,
+        "NLov" : 11,
+        "KLov" : 10,
+        "Kém" : 9,
+    }
+}
+else if(domain.includes("tribals.it")){
+    tomorrowTranslated = "domani";
+    atTranslated = "alle";
+    prevUnit = "nobile";
+    explor = "Esploratore";
+    attackTranslated = "Attacco";
+
+    baseUnitSpeed = {
+        "nobile" : 35,
+        "Arieti" : 30,
+        "Spada" : 22,
+        "Ascia" : 18,
+        "PCav" : 11,
+        "LCav" : 10,
+        "Esploratore" : 9,
+    }
+}
+else if(domain.includes("klanlar.org")){
+    tomorrowTranslated = "yarın şu";
+    atTranslated = "saat";
+    prevUnit = "M";
+    explor = "Casus";
+    attackTranslated = "Saldırı";
+
+    baseUnitSpeed = {
+        "M" : 35,
+        "Koçbaşı" : 30,
+        "Kılıç" : 22,
+        "Balta" : 18,
+        "AA" : 11,
+        "HA" : 10,
+        "Casus" : 9,
+    }
+}
+else if(domain.includes("tribalwars.ae")){
+    atTranslated = " غدا";
+    prevUnit = "نبيل";
+    explor = "كشافة";
+    attackTranslated = "هجوم";
+
+    baseUnitSpeed = {
+        "نبيل" : 35,
+        "محطمة الحائط" : 30,
+        "سيف" : 22,
+        "فأس" : 18,
+        "الفرسان الثقيلة" : 11,
+        "الفرسان الخفيفة" : 10,
+        "كشافة" : 9,
+    }
+}
 
 
 function getTimeLeftInSecond(row){
@@ -145,7 +297,7 @@ function getAttacker(row){
 }
 
 function getTravelTimeInSecond(distance, unit){
-return Math.round(distance * (60*baseUnitSpeed[unit]/WorldSpeed/UnitSpeed));
+    return Math.round(distance * (60*baseUnitSpeed[unit]/WorldSpeed/UnitSpeed));
 }
 
 function getBackTime(row){
@@ -235,7 +387,7 @@ function submitAttackName($row) {
 function RenameAttack(){
     var i=0;
     $('tr.nowrap').each(function(){
-            if ($.trim($(this).find('td')[0].innerText).includes(attackTranslated)){
+        if ($.trim($(this).find('td')[0].innerText).includes(attackTranslated)){
             setTimeout(delayed, i*150,$(this));
             i++;
         }
