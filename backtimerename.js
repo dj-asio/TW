@@ -88,7 +88,7 @@ else if(domain.includes("fyletikesmaxes.gr")){
     explore = "Ανιχνευτής";
     attackTranslated = "Επίθεση";
 
-    baseUnitSpeed = {
+    /*baseUnitSpeed = {
         "Αριστοκράτης" : 35,
         "Κριός" : 30,
         "Ξίφος" : 22,
@@ -96,6 +96,15 @@ else if(domain.includes("fyletikesmaxes.gr")){
         "Βαρ.ιππ." : 11,
         "Ελ.ιππ." : 10,
         "Ανιχνευτής" : 9,
+    }*/
+    baseUnitSpeed = {
+        "noble" : 35,
+        "ram" : 30,
+        "sword" : 22,
+        "axe" : 18,
+        "hcav" : 11,
+        "lcav" : 10,
+        "spy" : 9,
     }
 }
 /*else if(domain.includes("voynaplemyon.com")){
