@@ -84,7 +84,7 @@ if(domain.includes("tribalwars.net") || domain.includes("tribalwars.co.uk")){
 else if(domain.includes("fyletikesmaxes.gr")){
     tomorrowTranslated = "αύριο";
     atTranslated = "στις";
-    prevUnit = "<b>Αριστοκράτης</b>";
+    prevUnit = "Αριστοκράτης";
     explore = "Ανιχνευτής";
     attackTranslated = "Επίθεση";
 
@@ -98,7 +98,7 @@ else if(domain.includes("fyletikesmaxes.gr")){
         "Ανιχνευτής" : 9,
     }*/
     baseUnitSpeed = {
-        "<b>noble</b>" : 35,
+        "<strong>noble</strong>" : 35,
         "ram" : 30,
         "sword" : 22,
         "axe" : 18,
