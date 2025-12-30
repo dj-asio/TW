@@ -261,20 +261,7 @@ function findAttackLaunch(row){
 }
 
 function getFinalString(row){
-    // return findAttackSpeed(row) + " " + getAttacker(row) + " " + getSender(row) + " " + findAttackLaunch(row) + " | " + getBackTime(row)
-    let unit = findAttackSpeed(row);
-
-    // Bold ONLY nobles for forum
-    if(unit === "***Αριστοκράτης***"){
-        unit = "[b]***Αριστοκράτης***[/b]";
-    }
-
-    return unit + " "
-        + getAttacker(row) + " "
-        + getSender(row) + " "
-        + findAttackLaunch(row)
-        + " | "
-        + getBackTime(row);
+    return findAttackSpeed(row) + " " + getAttacker(row) + " " + getSender(row) + " " + findAttackLaunch(row) + " | " + getBackTime(row)
 }
 
 
