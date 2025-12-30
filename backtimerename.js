@@ -98,12 +98,12 @@ else if(domain.includes("fyletikesmaxes.gr")){
         "Ανιχνευτής" : 9,
     }*/
     baseUnitSpeed = {
-        "noble" : 35,
+        "<b>noble</b>" : 35,
         "ram" : 30,
         "sword" : 22,
         "axe" : 18,
-        "hcav" : 11,
-        "lcav" : 10,
+        "HC" : 11,
+        "LC" : 10,
         "spy" : 9,
     }
 }
