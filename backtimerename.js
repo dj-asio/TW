@@ -88,24 +88,24 @@ else if(domain.includes("fyletikesmaxes.gr")){
     explore = "Ανιχνευτής";
     attackTranslated = "Επίθεση";
 
-    /*baseUnitSpeed = {
-        "Αριστοκράτης" : 35,
+    baseUnitSpeed = {
+        "***Αριστοκράτης***" : 35,
         "Κριός" : 30,
         "Ξίφος" : 22,
         "Τσεκούρι" : 18,
         "Βαρ.ιππ." : 11,
         "Ελ.ιππ." : 10,
         "Ανιχνευτής" : 9,
-    }*/
-    baseUnitSpeed = {
-        "<strong>noble</strong>" : 35,
+    }
+    /*baseUnitSpeed = {
+        "***noble***" : 35,
         "ram" : 30,
         "sword" : 22,
         "axe" : 18,
         "HC" : 11,
         "LC" : 10,
         "spy" : 9,
-    }
+    }*/
 }
 /*else if(domain.includes("voynaplemyon.com")){
     tomorrowTranslated = "завтра";
