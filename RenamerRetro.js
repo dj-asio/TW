@@ -23,7 +23,7 @@
 	Client Launcher (live):
 	######################
 
-	javascript:var UnitDefinition=["Ανιχνευτής","Ελαφρύ Ιππικό","Βαρύ Ιππικό","Τσεκούρι - Δόρυ","Ξίφος","Κριός - Καταπέλτης","***ΑΡΙΣΤΟΚΡΑΤΗΣ***"];$.getScript('ΕΠΙΚΟΙΝΩΝΣΤΕ ΜΕ asio ΓΙΑ ΤΟ LINK');void 0;
+	// javascript:var UnitDefinition=["Ανιχνευτής","Ελαφρύ Ιππικό","Βαρύ Ιππικό","Τσεκούρι - Δόρυ","Ξίφος","Κριός - Καταπέλτης","***ΑΡΙΣΤΟΚΡΑΤΗΣ***"];$.getScript('ΕΠΙΚΟΙΝΩΝΣΤΕ ΜΕ asio ΓΙΑ ΤΟ LINK');void 0;
 	javascript:var UnitDefinition=["spy",
 "LC",
 "HC",
