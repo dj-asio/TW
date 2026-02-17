@@ -373,6 +373,26 @@ function RenameAttack()
     }
     window.onerror = V;
 
+    // Greek → numeric month map
+    var greekMonthMap = {
+        'Ιαν':0, 'Φεβ':1, 'Μαρ':2, 'Απρ':3, 'Μαι':4, 'Ιουν':5,
+        'Ιουλ':6, 'Αυγ':7, 'Σεπ':8, 'Οκτ':9, 'Νοε':10, 'Δεκ':11
+    };
+
+// parse arrival string
+    function parseGreekDate(str) {
+        // Example str: "17 Φεβ 2026 11:20:23"
+        var parts = str.match(/(\d+)\s+(\w+)\s+(\d+)\s+(\d+):(\d+):(\d+)/);
+        if(!parts) return null;
+        var day = parseInt(parts[1],10);
+        var month = greekMonthMap[parts[2].substr(0,3)];
+        var year = parseInt(parts[3],10);
+        var hour = parseInt(parts[4],10);
+        var min = parseInt(parts[5],10);
+        var sec = parseInt(parts[6],10);
+        return new Date(year, month, day, hour, min, sec);
+    }
+
     function Z() {
         d = (window.main || self).document;
         //aid = d.getElementById('editInput').parentNode.innerHTML.match(/id\=(\d+)/)[1];
@@ -451,7 +471,8 @@ function RenameAttack()
                 u[m - 1].colSpan = 5 - m;
                 if (N(u[0]) == 'Άφιξη:') {
                     // Q = Date(N(u[1]).replace(/<.*/i, ''));
-                    Q = new Date(N(u[1]).replace(/<.*/i, ''));
+                    Q = parseGreekDate(N(u[1]).replace(/<.*/i,''));
+                    if(!Q) throw "Cannot parse arrival date!";
                 } else {
                     if (N(u[0]) == 'Άφιξη σε:') {
                         v = N(u[1]).match(/\d+/ig);
