@@ -487,7 +487,9 @@ function RenameAttack()
 
         //for each unit speed
         for (j in p) {
-            z = Math.round([parseFloat(unitConfig.spy.speed), parseFloat(unitConfig.light.speed), parseFloat(unitConfig.heavy.speed), parseFloat(unitConfig.axe.speed), parseFloat(unitConfig.sword.speed), parseFloat(unitConfig.ram.speed), parseFloat(unitConfig.snob.speed)][j] * T * F);
+            // z = Math.round([parseFloat(unitConfig.spy.speed), parseFloat(unitConfig.light.speed), parseFloat(unitConfig.heavy.speed), parseFloat(unitConfig.axe.speed), parseFloat(unitConfig.sword.speed), parseFloat(unitConfig.ram.speed), parseFloat(unitConfig.snob.speed)][j] * T * F);
+            var unitSpeedInSeconds = [parseFloat(unitConfig.spy.speed), parseFloat(unitConfig.light.speed), ...][j] * T;
+            z = Math.round(unitSpeedInSeconds * F); // χρόνος επίθεσης σε δευτερόλεπτα
             A = z - y;
             if (A > 0) {
                 I = Y(z);
