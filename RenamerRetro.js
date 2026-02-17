@@ -505,10 +505,14 @@ function RenameAttack()
                 // renaming interface
                 C = W(3);
 
+                var sentTime = new Date(arrivalTime.valueOf() - unitDurationSec * 1000);
+                var returnTime = new Date(arrivalTime.valueOf() + unitDurationSec * 1000);
+
                 var label = c
                     .replace(/\{duration\}/i, I)
-                    .replace(/\{sent\}/i, Date(Q.valueOf() - z * 1000).toString().replace(/\w+\s*/i, '').replace(/(\d*:\d*:\d*)(.*)/i, '$1'))
-                    .replace(/\{return\}/i, Date(Q.valueOf() + z * 1000).toString().replace(/\w+\s*/i, '').replace(/(\d*:\d*:\d*)(.*)/i, '$1'))
+                var label = c
+                    .replace(/\{sent\}/i, sentTime.toString().replace(/^\w+\s*/i,''))
+                    .replace(/\{return\}/i, returnTime.toString().replace(/^\w+\s*/i,''))
                     .replace(/\{unit\}/i, p[j])
                     .replace(/\{attackID\}/i, aid)
                     .replace(/\{attack_id\}/i, aid);
