@@ -488,7 +488,16 @@ function RenameAttack()
         //for each unit speed
         for (j in p) {
             // z = Math.round([parseFloat(unitConfig.spy.speed), parseFloat(unitConfig.light.speed), parseFloat(unitConfig.heavy.speed), parseFloat(unitConfig.axe.speed), parseFloat(unitConfig.sword.speed), parseFloat(unitConfig.ram.speed), parseFloat(unitConfig.snob.speed)][j] * T * F);
-            var unitSpeedInSeconds = [parseFloat(unitConfig.spy.speed), parseFloat(unitConfig.light.speed), ...][j] * T;
+            var unitSpeeds = [
+                parseFloat(unitConfig.spy.speed),
+                parseFloat(unitConfig.light.speed),
+                parseFloat(unitConfig.heavy.speed),
+                parseFloat(unitConfig.axe.speed),
+                parseFloat(unitConfig.sword.speed),
+                parseFloat(unitConfig.ram.speed),
+                parseFloat(unitConfig.snob.speed)
+            ];
+            var unitSpeedInSeconds = unitSpeeds[j] * T; // T = 60 (δευτερόλεπτα ανά λεπτό)
             z = Math.round(unitSpeedInSeconds * F); // χρόνος επίθεσης σε δευτερόλεπτα
             A = z - y;
             if (A > 0) {
@@ -507,17 +516,15 @@ function RenameAttack()
                 // renaming interface
                 C = W(3);
 
-                var sentTime = new Date(arrivalTime.valueOf() - unitDurationSec * 1000);
-                var returnTime = new Date(arrivalTime.valueOf() + unitDurationSec * 1000);
+                var sentTime = new Date(Q.valueOf() - z * 1000);
+                var returnTime = new Date(Q.valueOf() + z * 1000);
 
                 var label = c
                     .replace(/\{duration\}/i, I)
-                var label = c
-                    .replace(/\{sent\}/i, sentTime.toString().replace(/^\w+\s*/i,''))
-                    .replace(/\{return\}/i, returnTime.toString().replace(/^\w+\s*/i,''))
+                    .replace(/\{sent\}/i, sentTime.toString())
+                    .replace(/\{return\}/i, returnTime.toString())
                     .replace(/\{unit\}/i, p[j])
-                    .replace(/\{attackID\}/i, aid)
-                    .replace(/\{attack_id\}/i, aid);
+                    .replace(/\{attackID\}/i, aid);
 
                 // BBCode coloring for noble
                 if(p[j].toLowerCase() === 'noble'){
