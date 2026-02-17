@@ -486,7 +486,7 @@ function RenameAttack()
         c = c.replace(/\{coords\}/i, w[1]).replace(/\{distance\}/i, H).replace(/\{player\}/i, G); // this is the name string to work with
 
         //for each unit speed
-        for (j in p) {
+        /*for (j in p) {
             // z = Math.round([parseFloat(unitConfig.spy.speed), parseFloat(unitConfig.light.speed), parseFloat(unitConfig.heavy.speed), parseFloat(unitConfig.axe.speed), parseFloat(unitConfig.sword.speed), parseFloat(unitConfig.ram.speed), parseFloat(unitConfig.snob.speed)][j] * T * F);
             var unitSpeeds = [
                 parseFloat(unitConfig.spy.speed),
@@ -550,7 +550,73 @@ function RenameAttack()
                 };
                 C.appendChild(button);
             }
+        }*/
+
+        // loop over all units
+        var unitSpeeds = [
+            parseFloat(unitConfig.spy.speed),
+            parseFloat(unitConfig.light.speed),
+            parseFloat(unitConfig.heavy.speed),
+            parseFloat(unitConfig.axe.speed),
+            parseFloat(unitConfig.sword.speed),
+            parseFloat(unitConfig.ram.speed),
+            parseFloat(unitConfig.snob.speed)
+        ];
+        for (var j = 0; j < UnitDefinition.length; j++) {
+            var unitName = UnitDefinition[j]; // English names
+            var speedSec = unitSpeeds[j] * T; // T = 60 sec/min, speed per field
+            var durationSec = Math.round(speedSec * F); // F = distance in fields
+
+            var timeSinceSent = durationSec - y; // A in old code
+            if (timeSinceSent <= 0) continue;
+
+            var durationFormatted = Y(durationSec); // HH:MM:SS duration
+            B = O(); // create new row
+
+            // unit name with BBCode highlight for noble
+            var unitNameBB = unitName.toLowerCase().includes('noble')
+                ? '[color=red]' + unitName + '[/color]'
+                : unitName;
+
+            P(W(0), unitNameBB);
+
+            // sent / return times
+            var sentTime = new Date(Q.valueOf() - durationSec * 1000);
+            var returnTime = new Date(Q.valueOf() + durationSec * 1000);
+
+            P(W(1), 'S:' + sentTime.toDateString().replace(/^\w+\s*/,'') + ' ' + sentTime.toTimeString().split(' ')[0]);
+            P(W(2), 'R:' + returnTime.toDateString().replace(/^\w+\s*/,'') + ' ' + returnTime.toTimeString().split(' ')[0]);
+            P(W(3), durationFormatted);
+
+            // renaming input/button
+            var label = c
+                .replace(/\{sent\}/i, sentTime.toDateString().replace(/^\w+\s*/,'') + ' ' + sentTime.toTimeString().split(' ')[0])
+                .replace(/\{return\}/i, returnTime.toDateString().replace(/^\w+\s*/,'') + ' ' + returnTime.toTimeString().split(' ')[0])
+                .replace(/\{unit\}/i, unitName)
+                .replace(/\{attackID\}/i, aid)
+                .replace(/\{attack_id\}/i, aid);
+
+            var input = document.createElement('input');
+            input.id = 'label_input_' + j;
+            input.value = label;
+            W(3).appendChild(input);
+
+            var button = document.createElement('input');
+            button.name = j;
+            button.type = 'button';
+            button.className = 'btn';
+            button.value = 'OK';
+            button.onclick = function() {
+                var labelVal = document.getElementById('label_input_' + this.name).value;
+                var $container = $('span[class*="quickedit"][data-id="'+ aid +'"]');
+                $container.find('.rename-icon').click();
+                $container.find('input[type=text]').val(labelVal);
+                $container.find('input[type=button]').click();
+            };
+            W(3).appendChild(button);
         }
+
+
     }
     Z();
 }
