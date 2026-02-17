@@ -246,7 +246,7 @@ function conversionImpactDate(row){
             break
 
     }
-    if(dateCalculate==null) {throw new Error("oops, error in data conversion")}
+    if(dateCalculate==null) {throw new Error("error in data conversion")}
 
     return dateCalculate;
 
@@ -261,7 +261,12 @@ function findAttackLaunch(row){
 }
 
 function getFinalString(row){
-    return findAttackSpeed(row) + " " + getAttacker(row) + " " + getSender(row) + " " + findAttackLaunch(row) + " | " + getBackTime(row)
+    return findAttackSpeed(row) + " "
+        + getAttacker(row) + " "
+        + getSender(row) + " "
+        + findAttackLaunch(row)
+        + " | "
+        + getBackTime(row)
 }
 
 
