@@ -450,7 +450,8 @@ function RenameAttack()
             if (m) {
                 u[m - 1].colSpan = 5 - m;
                 if (N(u[0]) == 'Άφιξη:') {
-                    Q = Date(N(u[1]).replace(/<.*/i, ''));
+                    // Q = Date(N(u[1]).replace(/<.*/i, ''));
+                    Q = new Date(N(u[1]).replace(/<.*/i, ''));
                 } else {
                     if (N(u[0]) == 'Άφιξη σε:') {
                         v = N(u[1]).match(/\d+/ig);
