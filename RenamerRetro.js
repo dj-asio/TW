@@ -1,5 +1,5 @@
 
-/*      EDITOR: Tsalkapone
+/*      EDITOR: Asio
 	SUPPORTED:
 		{unit} : the type of unit that you have decided is on its way...
 		{coords} : The coordinates of the originating village
@@ -23,24 +23,31 @@
 	Client Launcher (live):
 	######################
 
-	javascript:var TsalkaponeΚαθορισμόςΜονάδων=["Ανιχνευτής","Ελαφρύ Ιππικό","Βαρύ Ιππικό","Τσεκούρι - Δόρυ","Ξίφος","Κριός - Καταπέλτης","***ΑΡΙΣΤΟΚΡΑΤΗΣ***"];$.getScript('ΕΠΙΚΟΙΝΩΝΣΤΕ ΜΕ TSALKAPONE ΓΙΑ ΤΟ LINK');void 0;
+	javascript:var UnitDefinition=["Ανιχνευτής","Ελαφρύ Ιππικό","Βαρύ Ιππικό","Τσεκούρι - Δόρυ","Ξίφος","Κριός - Καταπέλτης","***ΑΡΙΣΤΟΚΡΑΤΗΣ***"];$.getScript('ΕΠΙΚΟΙΝΩΝΣΤΕ ΜΕ asio ΓΙΑ ΤΟ LINK');void 0;
+	javascript:var UnitDefinition=["spy",
+"LC",
+"HC",
+"axe",
+"sword",
+"ram",
+"***noble***"];$.getScript();void 0;
 */
-
+(function() {
 javascript:
 
     /*************************************************
      * begin code for configuration GUI
      * author: Nick Toby (cheesasaurus@gmail.com)
-     * editor: Tsalkapone (tsalkapone@hotmail.com)
+     * editor: Asio
      *************************************************/
 
-    if(!Tsalkapone)
-        var Tsalkapone={};
 
-Tsalkapone.createTaggerGUI = function()
+window.RenamerRetro = window.RenamerRetro || {};
+
+RenamerRetro.createTaggerGUI = function()
 {
     var contentContainer = document.createElement('div');
-    contentContainer.id = 'Tsalkapone_tag_config_container';
+    contentContainer.id = 'RenamerRetro_tag_config_container';
     contentContainer.style.display = 'block';
     contentContainer.style.position = 'fixed';
     contentContainer.style.zIndex = 5000;
@@ -56,21 +63,21 @@ Tsalkapone.createTaggerGUI = function()
     titleBar.insertRow(-1);
     titleBar.rows[0].insertCell(-1);
     titleBar.rows[0].insertCell(-1);
-    titleBar.rows[0].cells[0].innerHTML = '<b>Tsalkapone. Ρυθμίσεις Περιεχομένου Ονοματολογίας Εντολών</b>';
+    titleBar.rows[0].cells[0].innerHTML = '<b>RenamerRetro. Ρυθμίσεις Περιεχομένου Ονοματολογίας Εντολών</b>';
     titleBar.rows[0].cells[0].width = '100%';
     titleBar.rows[0].cells[1].innerHTML = '<img src="graphic/delete.png" alt="X"/>';
     titleBar.rows[0].cells[1].style.cursor="pointer";
-    titleBar.rows[0].cells[1].onclick = function(){$('#Tsalkapone_tag_config_container').remove()};
+    titleBar.rows[0].cells[1].onclick = function(){$('#RenamerRetro_tag_config_container').remove()};
     titleBar.rows[0].cells[1].style.color = 'red';
     contentContainer.appendChild(titleBar);
 
 
     var content = document.createElement('div');
-    content.id = 'Tsalkapone_tag_config';
+    content.id = 'RenamerRetro_tag_config';
 
-    if(localStorage.getItem('Tsalkapone.slowTarget_taggerConfig'))
+    if(localStorage.getItem('RenamerRetro.slowTarget_taggerConfig'))
     {
-        var options = JSON.parse(localStorage.getItem('Tsalkapone.slowTarget_taggerConfig'));
+        var options = JSON.parse(localStorage.getItem('RenamerRetro.slowTarget_taggerConfig'));
         content.config = options;
     }
     else
@@ -143,7 +150,7 @@ Tsalkapone.createTaggerGUI = function()
 
     content.preview = function()
     {
-        document.getElementById('Tsalkapone_tag_preview').innerHTML = this.getFormat();
+        document.getElementById('RenamerRetro_tag_preview').innerHTML = this.getFormat();
     };
 
     content.saveConfig = function()
@@ -155,15 +162,15 @@ Tsalkapone.createTaggerGUI = function()
 
         }
 
-        localStorage.setItem('Tsalkapone.slowTarget_taggerConfig',JSON.stringify(this.config));
-        localStorage.setItem('Tsalkapone.slowTarget_taggerFormat',this.getFormat());
+        localStorage.setItem('RenamerRetro.slowTarget_taggerConfig',JSON.stringify(this.config));
+        localStorage.setItem('RenamerRetro.slowTarget_taggerFormat',this.getFormat());
         UI.InfoMessage('Οι ρυθμίσεις αποθηκεύτηκαν.<br/>Θα τεθούν σε εφαρμογή στην επόμενη ενεργοποίηση του script.',3000,'success');
     };
 
     /*==== preview ====*/
     var preview = document.createElement('span');
-    preview.id = 'Tsalkapone_tag_preview';
-    preview.innerHTML = 'Tsalkapone';
+    preview.id = 'RenamerRetro_tag_preview';
+    preview.innerHTML = 'RenamerRetro';
     content.innerHTML = '<b>Προεπισκόπηση: </b>';
     content.appendChild(preview);
 
@@ -175,7 +182,7 @@ Tsalkapone.createTaggerGUI = function()
 
     /*==== config ====*/
     var optionsTable = document.createElement('table');
-    optionsTable.id = 'Tsalkapone_config_table';
+    optionsTable.id = 'RenamerRetro_config_table';
 
     for(var i=0;i<7;i++)
     {
@@ -218,51 +225,51 @@ Tsalkapone.createTaggerGUI = function()
 
     contentContainer.appendChild(content);
     document.getElementById('content_value').appendChild(contentContainer);
-    $('#Tsalkapone_config_table > tbody').sortable({handle: '.qbhandle', placeholder: 'sortable-placeholder'});
-    $('#Tsalkapone_config_table > tbody').on('sortstop', function(){content.preview()});
+    $('#RenamerRetro_config_table > tbody').sortable({handle: '.qbhandle', placeholder: 'sortable-placeholder'});
+    $('#RenamerRetro_config_table > tbody').on('sortstop', function(){content.preview()});
 
     content.preview();
 };
 
-Tsalkapone.createConfigButton = function()
+RenamerRetro.createConfigButton = function()
 {
     //code recycled from bre help button
-    var Tsalkapone_menu = document.createElement('div');
-    Tsalkapone_menu.style.textAlign = 'center';
+    var RenamerRetro_menu = document.createElement('div');
+    RenamerRetro_menu.style.textAlign = 'center';
 
-    var Tsalkapone_menu_text = document.createElement('p');
-    Tsalkapone_menu_text.style.fontSize = '9pt';
-    Tsalkapone_menu_text.innerHTML = 'Ρυθμίσεις';
-    Tsalkapone_menu_text.style.fontWeight = '700';
-    Tsalkapone_menu_text.style.marginTop = '3px';
-    Tsalkapone_menu_text.style.color = '#422301';
-    Tsalkapone_menu.appendChild(Tsalkapone_menu_text);
+    var RenamerRetro_menu_text = document.createElement('p');
+    RenamerRetro_menu_text.style.fontSize = '9pt';
+    RenamerRetro_menu_text.innerHTML = 'Ρυθμίσεις';
+    RenamerRetro_menu_text.style.fontWeight = '700';
+    RenamerRetro_menu_text.style.marginTop = '3px';
+    RenamerRetro_menu_text.style.color = '#422301';
+    RenamerRetro_menu.appendChild(RenamerRetro_menu_text);
 
-    Tsalkapone_menu.style.background = 'url("http://cdn.fyletikesmaxes.gr/8.19/19813/graphic/index/iconbar-mc.png?0c9c1")';
-    Tsalkapone_menu.style.height = '30px';
-    Tsalkapone_menu.style.width = '80px';
-    Tsalkapone_menu.style.display = 'block';
-    Tsalkapone_menu.style.position = 'fixed';
-    Tsalkapone_menu.style.left = '100%';
-    Tsalkapone_menu.style.top = '100%';
-    Tsalkapone_menu.style.marginTop = '-80px';
-    Tsalkapone_menu.style.marginLeft = '-80px';
-    Tsalkapone_menu.style.zIndex = '99999999999';
+    RenamerRetro_menu.style.background = 'url("http://cdn.fyletikesmaxes.gr/8.19/19813/graphic/index/iconbar-mc.png?0c9c1")';
+    RenamerRetro_menu.style.height = '30px';
+    RenamerRetro_menu.style.width = '80px';
+    RenamerRetro_menu.style.display = 'block';
+    RenamerRetro_menu.style.position = 'fixed';
+    RenamerRetro_menu.style.left = '100%';
+    RenamerRetro_menu.style.top = '100%';
+    RenamerRetro_menu.style.marginTop = '-80px';
+    RenamerRetro_menu.style.marginLeft = '-80px';
+    RenamerRetro_menu.style.zIndex = '99999999999';
 
-    Tsalkapone_menu.onmouseover = function(){this.style.background='url("http://cdn.fyletikesmaxes.gr/8.19/19813/graphic/index/iconbar-mc.png?0c9c1")'};
-    Tsalkapone_menu.onmouseout = function(){this.style.background='url("http://cdn.fyletikesmaxes.gr/8.19/19813/graphic/index/iconbar-mc.png?0c9c1")'};
-
-
-    Tsalkapone_menu.style.cursor = 'pointer';
-    Tsalkapone_menu.onclick = function(){Tsalkapone.createTaggerGUI()};
+    RenamerRetro_menu.onmouseover = function(){this.style.background='url("http://cdn.fyletikesmaxes.gr/8.19/19813/graphic/index/iconbar-mc.png?0c9c1")'};
+    RenamerRetro_menu.onmouseout = function(){this.style.background='url("http://cdn.fyletikesmaxes.gr/8.19/19813/graphic/index/iconbar-mc.png?0c9c1")'};
 
 
-    return document.body.appendChild(Tsalkapone_menu);
+    RenamerRetro_menu.style.cursor = 'pointer';
+    RenamerRetro_menu.onclick = function(){RenamerRetro.createTaggerGUI()};
+
+
+    return document.body.appendChild(RenamerRetro_menu);
 };
 
-Tsalkapone.createConfigButton();
-if(localStorage.getItem('Tsalkapone.slowTarget_taggerFormat'))
-    theFormat = localStorage.getItem('Tsalkapone.slowTarget_taggerFormat');
+RenamerRetro.createConfigButton();
+if(localStorage.getItem('RenamerRetro.slowTarget_taggerFormat'))
+    theFormat = localStorage.getItem('RenamerRetro.slowTarget_taggerFormat');
 
 /*************************************************
  * end code for configuration GUI
@@ -295,11 +302,11 @@ function RenameAttack()
         version:1.01,
         minGameVersion:6.50,
         author:{
-            name:'Tsalkapone',
-            email:'tsalkapone@hotmail.com',
-            url:'http://forum.fyletikesmaxes.gr/member.php?27574-tsalkapone'
+            name:'RenamerRetro',
+            // email:'tsalkapone@hotmail.com',
+            // url:'http://forum.fyletikesmaxes.gr/member.php?27574-tsalkapone'
         },
-        CREDIT:'Η αυθεντική έκδοση ανήκει στους slowTarget, dalesmckay, twcheese. Προσαρμόστηκε και τροποποιήθηκε για τον ελληνικό server από τον Tsalkapone',
+        // CREDIT:'Η αυθεντική έκδοση ανήκει στους slowTarget, dalesmckay, twcheese. Προσαρμόστηκε και τροποποιήθηκε για τον ελληνικό server από τον asio',
         runOnce:true
     };
 
@@ -344,19 +351,23 @@ function RenameAttack()
     fnPrint('=========================');
 
     if((typeof(theFormat)=='undefined')||((window.main||self).$.trim(theFormat)=='')){
-        theFormat = '{unit} ({coords}) {player} - id:{attackID}';
+        // theFormat = '{unit} ({coords}) {player} - id:{attackID}';
+        // theFormat = '{unit} ({coords}) {player} - Επιστροφή:{return} - Στάλθηκε:{sent}';
+        // theFormat = '{unit} ({coords}) {player} - Επιστ:{return} - Στάλ:{sent}'; // compact
+        theFormat = '{unit} {coords} - R:{return} S:{sent}'; // most compact
     }
     fnPrint('<span style="font-weight:bold;">Διαμόρφωση: </span>'+theFormat);
 
     if((window.main||self).game_data.screen!='info_command'){
-        throw('Tsalkapone. Αναγνώριση και Μετονομασία Εντολών \n\n Το συγκεκριμένο script ενεργοποιείται από τις πληροφορίες μιας εντολής');
+        throw('RenamerRetro. Αναγνώριση και Μετονομασία Εντολών \n\n Το συγκεκριμένο script ενεργοποιείται από τις πληροφορίες μιας εντολής');
     }
 
     var unitConfig = FetchUnitConfig();
     //fnPrint(JSON.stringify(unitConfig));
 
     c=theFormat;
-    p=TsalkaponeΚαθορισμόςΜονάδων;
+    var p = UnitDefinition;
+
     function V() {
         return 1;
     }
@@ -494,7 +505,18 @@ function RenameAttack()
                 // renaming interface
                 C = W(3);
 
-                var label = c.replace(/\{duration\}/i, I).replace(/\{sent\}/i, Date(Q.valueOf() - z * 1000).toString().replace(/\w+\s*/i, '').replace(/(\d*:\d*:\d*)(.*)/i, '$1')).replace(/\{return\}/i, Date(Q.valueOf() + z * 1000).toString().replace(/\w+\s*/i, '').replace(/(\d*:\d*:\d*)(.*)/i, '$1')).replace(/\{unit\}/i, p[j]).replace(/\{attackID\}/i, aid).replace(/\{attack_id\}/i, aid);;
+                var label = c
+                    .replace(/\{duration\}/i, I)
+                    .replace(/\{sent\}/i, Date(Q.valueOf() - z * 1000).toString().replace(/\w+\s*/i, '').replace(/(\d*:\d*:\d*)(.*)/i, '$1'))
+                    .replace(/\{return\}/i, Date(Q.valueOf() + z * 1000).toString().replace(/\w+\s*/i, '').replace(/(\d*:\d*:\d*)(.*)/i, '$1'))
+                    .replace(/\{unit\}/i, p[j])
+                    .replace(/\{attackID\}/i, aid)
+                    .replace(/\{attack_id\}/i, aid);
+
+                // BBCode coloring for noble
+                if(p[j].toLowerCase() === 'noble'){
+                    label = label.replace(p[j], '[color=red][b]'+p[j]+'[/b][/color]');
+                }
                 var input = document.createElement('input');
                 input.id = 'label_input_'+j;
                 input.value = label;
@@ -529,3 +551,4 @@ catch(objError){
     fnPrint('<span style="color:red;">'+dbgMsg+'</span>');
     alert((window.main||self).$('<span>'+dbgMsg+'</span>').text());
 }
+})();
