@@ -1,7 +1,7 @@
 // UltraSniper.js - Fyletikes Maxes Ultra-Precision Sniper
 // Version: 4.0 (Hybrid Timing Engine)
 // Author: dj-asio
-// Loader: javascript:$.getScript("https://cdn.jsdelivr.net/gh/dj-asio/TW@main/ultraSniper.js");
+// Loader: javascript:$.getScript("https://cdn.jsdelivr.net/gh/dj-asio/TW@main/ultraSniperAutoMs.js");
 
 (function() {
     'use strict';
