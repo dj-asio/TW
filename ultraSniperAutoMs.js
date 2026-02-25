@@ -266,8 +266,8 @@
                 <label id="support-label" style="flex:1; padding: 10px; background: #4CAF50; text-align: center; border-radius: 6px; cursor: pointer; font-weight: bold;">
                     <input type="radio" name="attackType" value="support" checked style="display: none;"> 🛡️ SUPPORT
                 </label>
-                <label id="noble-label" style="flex:1; padding: 10px; background: #333; text-align: center; border-radius: 6px; cursor: pointer; font-weight: bold;">
-                    <input type="radio" name="attackType" value="noble" style="display: none;"> 👑 NOBLE
+                <label id="attack-label" style="flex:1; padding: 10px; background: #333; text-align: center; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                    <input type="radio" name="attackType" value="attack" style="display: none;"> 👑 ATTACK
                 </label>
             </div>
         </div>
@@ -370,7 +370,7 @@
         radio.addEventListener('change', (e) => {
             attackType = e.target.value;
             document.getElementById('support-label').style.background = attackType === 'support' ? '#4CAF50' : '#333';
-            document.getElementById('noble-label').style.background = attackType === 'noble' ? '#4CAF50' : '#333';
+            document.getElementById('attack-label').style.background = attackType === 'attack' ? '#4CAF50' : '#333';
         });
     });
 
@@ -547,7 +547,7 @@
                 button.style.boxShadow = '';
             }, 1000);
 
-            const message = `${attackType === 'support' ? '🛡️' : '👑'} SNIPE SUCCESS!\n` +
+            const message = `${attackType === 'support' ? '🛡️ SNIPE' : '👑 ATTACK'}  SUCCESS!\n` +
                 `Target: ${targetMs}ms | Actual: ${actualMs}ms\n` +
                 `Deviation: ${deviation > 0 ? '+' : ''}${deviation}ms\n` +
                 `Strategy: ${engine.strategies[engine.currentStrategy]}\n` +
@@ -555,7 +555,7 @@
 
             alert(message);
         } else {
-            alert(`❌ ${attackType === 'support' ? 'Support' : 'Noble'} button not found!\nMake sure you're on the attack page.`);
+            alert(`❌ ${attackType === 'support' ? 'Support' : 'Attack'} button not found!\nMake sure you're on the attack page.`);
         }
 
         updateStatus(`💥 Fired! Deviation: ${deviation > 0 ? '+' : ''}${deviation}ms`);
