@@ -1,7 +1,8 @@
 // UltraSniper.js - Fyletikes Maxes Ultra-Precision Sniper
-// Version: 4.0 (Hybrid Timing Engine)
+// Version: 4.1 (Performance.now() Engine)
 // Author: dj-asio
 // Loader: javascript:$.getScript("https://cdn.jsdelivr.net/gh/dj-asio/TW@main/ultraSniperAutoMs.js");
+// Loader: javascript:$.getScript("/home/tasos/WebstormProjects/TW/ultraSniperAutoMs.js");
 
 (function() {
     'use strict';
@@ -13,7 +14,7 @@
     }
     window.ultraSniperActive = true;
 
-    console.log('🎯 UltraSniper v4.0 (Hybrid Engine) loading...');
+    console.log('🎯 UltraSniper v4.1 (Performance.now() Engine) loading...');
 
     // ==================== ADVANCED TIMING ENGINE ====================
     class TimingEngine {
@@ -31,9 +32,22 @@
             this.p50 = 0;
             this.p90 = 0;
             this.calibrated = false;
+
+            // Get initial time offset for performance.now() to Date conversion
+            this.timeOrigin = Date.now() - performance.now();
         }
 
-        // Deep calibration with statistical analysis
+        // Convert performance timestamp to Date timestamp
+        performanceToDate(perfTime) {
+            return this.timeOrigin + perfTime;
+        }
+
+        // Convert Date to performance timestamp
+        dateToPerformance(date) {
+            return date - this.timeOrigin;
+        }
+
+        // Deep calibration with statistical analysis using performance.now()
         deepCalibrate(progressCallback) {
             this.latencySamples = [];
             let samples = 0;
@@ -84,7 +98,7 @@
             });
         }
 
-        // Quick calibration
+        // Quick calibration using performance.now()
         quickCalibrate(progressCallback) {
             this.latencySamples = [];
             let samples = 0;
@@ -118,69 +132,70 @@
             });
         }
 
-        // Hybrid timing execution
+        // Hybrid timing execution using performance.now()
         async executeAt(targetTime, strategy = 'hybrid') {
-            const targetTimestamp = targetTime.getTime();
+            const targetPerfTime = this.dateToPerformance(targetTime.getTime());
 
             return new Promise((resolve) => {
                 switch(strategy) {
                     case 'spinlock':
-                        this.spinLockExecution(targetTimestamp, resolve);
+                        this.spinLockExecution(targetPerfTime, resolve);
                         break;
                     case 'raf':
-                        this.rafExecution(targetTimestamp, resolve);
+                        this.rafExecution(targetPerfTime, resolve);
                         break;
                     case 'worker':
-                        this.workerExecution(targetTimestamp, resolve);
+                        this.workerExecution(targetPerfTime, resolve);
                         break;
                     case 'hybrid':
                     default:
-                        this.hybridExecution(targetTimestamp, resolve);
+                        this.hybridExecution(targetPerfTime, resolve);
                         break;
                 }
             });
         }
 
-        // Hybrid: setTimeout + spinlock for best balance
-        hybridExecution(targetTimestamp, resolve) {
-            const timeToTarget = targetTimestamp - Date.now();
+        // Hybrid: setTimeout + spinlock with performance.now()
+        hybridExecution(targetPerfTime, resolve) {
+            const timeToTarget = targetPerfTime - performance.now();
 
             if (timeToTarget > 50) {
                 // Use setTimeout for coarse waiting
                 setTimeout(() => {
-                    this.hybridExecution(targetTimestamp, resolve);
+                    this.hybridExecution(targetPerfTime, resolve);
                 }, Math.max(0, timeToTarget - 50));
                 return;
             }
 
-            // Spin lock for final 50ms for precision
-            while (Date.now() < targetTimestamp) {
-                // Busy wait
+            // Spin lock for final 50ms with microsecond precision
+            while (performance.now() < targetPerfTime) {
+                // Busy wait - performance.now() gives microsecond precision
             }
 
             resolve();
         }
 
-        // Spin lock: Most precise but CPU intensive
-        spinLockExecution(targetTimestamp, resolve) {
-            const spinStart = targetTimestamp - 5;
+        // Spin lock: Most precise with performance.now()
+        spinLockExecution(targetPerfTime, resolve) {
+            const spinStart = targetPerfTime - 5;
 
-            while (Date.now() < spinStart) {
+            while (performance.now() < spinStart) {
                 // Small delay to save CPU
                 setTimeout(() => {}, 0);
             }
 
-            while (Date.now() < targetTimestamp) {
-                // Pure spin for final precision
+            // Pure spin with microsecond precision
+            while (performance.now() < targetPerfTime) {
+                // performance.now() gives much finer precision than Date.now()
             }
 
             resolve();
         }
 
-        // requestAnimationFrame: Browser optimized
-        rafExecution(targetTimestamp, resolve) {
+        // requestAnimationFrame with performance.now() check
+        rafExecution(targetPerfTime, resolve) {
             const checkTime = () => {
-                if (Date.now() >= targetTimestamp - 2) {
+                if (performance.now() >= targetPerfTime - 2) {
                     resolve();
                 } else {
                     requestAnimationFrame(checkTime);
@@ -189,12 +204,14 @@
             requestAnimationFrame(checkTime);
         }
 
-        // Web Worker: Separate thread timing
-        workerExecution(targetTimestamp, resolve) {
+        // Web Worker with performance.now() alignment
+        workerExecution(targetPerfTime, resolve) {
+            // Pass the time origin to worker for consistent timing
             const workerCode = `
+                const timeOrigin = ${this.timeOrigin};
                 self.onmessage = function(e) {
-                    const targetTime = e.data;
-                    while(Date.now() < targetTime) {}
+                    const targetPerfTime = e.data;
+                    while(performance.now() < targetPerfTime) {}
                     self.postMessage('fire');
                 }
             `;
@@ -207,7 +224,7 @@
                 resolve();
             };
 
-            worker.postMessage(targetTimestamp);
+            worker.postMessage(targetPerfTime);
         }
 
         // Calculate optimal compensation based on calibration
@@ -255,9 +272,9 @@
     panel.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">
             <h3 style="margin:0; color: #00ff00; font-size: 18px;">
-                ⚡ UltraSniper v4.0
+                ⚡ UltraSniper v4.1
             </h3>
-            <span style="color: #666; font-size: 11px;">Hybrid Engine</span>
+            <span style="color: #666; font-size: 11px;">µs Precision</span>
         </div>
         
         <div style="margin-bottom: 15px;">
@@ -296,7 +313,7 @@
                 </div>
             </div>
             <div style="color: #ffd700; font-size: 11px; text-align: center; padding: 5px; background: #333; border-radius: 4px;">
-                ⚡ Enter your target time and milliseconds
+                ⚡ Microsecond precision with performance.now()
             </div>
         </div>
 
@@ -329,10 +346,11 @@
         </div>
 
         <div id="countdown-container" style="background: #000; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 10px;">
-            <div style="color: #666; font-size: 11px;">COUNTDOWN</div>
+            <div style="color: #666; font-size: 11px;">COUNTDOWN (µs precision)</div>
             <div id="countdown" style="color: #00ff00; font-size: 42px; font-family: monospace; font-weight: bold;">
                 00:00.000
             </div>
+            <div id="micro-display" style="color: #666; font-size: 11px; margin-top: 5px;"></div>
         </div>
 
         <div id="accuracy-history" style="background: #111; padding: 10px; border-radius: 6px; margin-bottom: 10px; max-height: 60px; overflow-y: auto; font-size: 11px;">
@@ -350,7 +368,7 @@
         </div>
 
         <div style="margin-top: 10px; font-size: 10px; color: #444; text-align: center;">
-            ⚡ Enter your own time and MS values | Drag title to move
+            ⚡ Using performance.now() for microsecond precision | Drag title to move
         </div>
     `;
 
@@ -359,6 +377,7 @@
     // ==================== APPLICATION STATE ====================
     let snipeTime = null;
     let countdownInterval = null;
+    let microInterval = null;
     let attackType = 'support';
     let accuracyHistory = [];
     let armed = false;
@@ -474,37 +493,59 @@
         updateStatus(`🎯 ARMED for ${timeStr}.${targetMs} (${compensation.toFixed(1)}ms comp)`, '#ff4444');
 
         if (countdownInterval) clearInterval(countdownInterval);
+        if (microInterval) clearInterval(microInterval);
 
+        // Main countdown with performance.now() precision
         countdownInterval = setInterval(() => {
-            const now = new Date();
-            const diff = snipeTime - now;
+            const nowPerf = performance.now();
+            const targetPerf = engine.dateToPerformance(snipeTime.getTime());
+            const diffPerf = targetPerf - nowPerf;
 
-            if (diff <= 0) {
+            if (diffPerf <= 0) {
                 clearInterval(countdownInterval);
+                clearInterval(microInterval);
                 executeSnipe();
                 return;
             }
 
-            const seconds = Math.floor(diff / 1000);
-            const ms = diff % 1000;
+            const seconds = Math.floor(diffPerf / 1000);
+            const ms = Math.floor(diffPerf % 1000);
             document.getElementById('countdown').textContent =
                 `${seconds.toString().padStart(2, '0')}:${ms.toString().padStart(3, '0')}`;
+        }, 10);
+
+        // Microsecond precision display
+        microInterval = setInterval(() => {
+            if (!armed) return;
+            const nowPerf = performance.now();
+            const targetPerf = engine.dateToPerformance(snipeTime.getTime());
+            const diffPerf = targetPerf - nowPerf;
+
+            if (diffPerf > 0 && diffPerf < 1000) {
+                const microDisplay = document.getElementById('micro-display');
+                if (microDisplay) {
+                    microDisplay.innerHTML = `⚡ ${diffPerf.toFixed(3)}ms remaining`;
+                }
+            }
         }, 1);
     });
 
     // Execute snipe with selected strategy
     async function executeSnipe() {
-        const executionStart = Date.now();
+        const executionStart = performance.now();
 
         // Use timing engine for precision
         await engine.executeAt(snipeTime, engine.currentStrategy);
 
-        const executionTime = new Date();
-        const actualMs = executionTime.getMilliseconds();
+        const executionPerf = performance.now();
+        const executionDate = new Date(engine.performanceToDate(executionPerf));
+        const actualMs = executionDate.getMilliseconds();
         const targetMs = parseInt(document.getElementById('target-ms').value);
         const deviation = actualMs - targetMs;
+        const microDeviation = (executionPerf - engine.dateToPerformance(snipeTime.getTime()));
 
         document.getElementById('countdown').textContent = '💥 FIRED!';
+        document.getElementById('micro-display').innerHTML = '';
 
         // Find and click button
         let button = null;
@@ -527,6 +568,7 @@
             target: targetMs,
             actual: actualMs,
             deviation: deviation,
+            microDeviation: microDeviation.toFixed(3),
             strategy: engine.currentStrategy
         });
 
@@ -534,7 +576,7 @@
         const historyList = document.getElementById('history-list');
         const lastFive = accuracyHistory.slice(-5);
         historyList.innerHTML = lastFive.map(h =>
-            `${h.deviation > 0 ? '🔴' : '🟢'} ${Math.abs(h.deviation)}ms (${h.strategy})`
+            `${h.deviation > 0 ? '🔴' : '🟢'} ${Math.abs(h.deviation)}ms (${h.microDeviation}ms)`
         ).join(' | ');
 
         if (button) {
@@ -550,6 +592,7 @@
             const message = `${attackType === 'support' ? '🛡️ SNIPE' : '👑 ATTACK'}  SUCCESS!\n` +
                 `Target: ${targetMs}ms | Actual: ${actualMs}ms\n` +
                 `Deviation: ${deviation > 0 ? '+' : ''}${deviation}ms\n` +
+                `Micro deviation: ${microDeviation > 0 ? '+' : ''}${microDeviation.toFixed(3)}ms\n` +
                 `Strategy: ${engine.strategies[engine.currentStrategy]}\n` +
                 `${Math.abs(deviation) <= 2 ? '🎯 PERFECT!' : '📊 Try different strategy or recalibrate'}`;
 
@@ -576,18 +619,19 @@
         }
 
         const testTime = new Date(Date.now() + 2000); // 2 seconds from now
+        const testPerfTime = engine.dateToPerformance(testTime.getTime());
 
-        updateStatus('🧪 Testing...', '#FF9800');
+        updateStatus('🧪 Testing with µs precision...', '#FF9800');
 
-        const testStart = Date.now();
+        const testStart = performance.now();
         await engine.executeAt(testTime, engine.currentStrategy);
-        const actualDeviation = (Date.now() - testTime) + targetMs;
+        const actualDeviation = (performance.now() - testPerfTime) * 1000; // Convert to microseconds
 
-        alert(`🧪 TEST RESULTS:\n` +
+        alert(`🧪 TEST RESULTS (microsecond precision):\n` +
             `Target: ${targetMs}ms\n` +
-            `Deviation: ${actualDeviation > 0 ? '+' : ''}${actualDeviation.toFixed(2)}ms\n` +
+            `Deviation: ${actualDeviation > 0 ? '+' : ''}${actualDeviation.toFixed(3)}µs\n` +
             `Strategy: ${engine.strategies[engine.currentStrategy]}\n\n` +
-            `${Math.abs(actualDeviation) <= 5 ? '✅ Good for real snipes!' : '⚠️ Calibrate for better accuracy'}`);
+            `${Math.abs(actualDeviation) < 2000 ? '✅ Good for real snipes!' : '⚠️ Calibrate for better accuracy'}`);
 
         updateStatus('✓ Ready');
     });
@@ -595,10 +639,12 @@
     // Reset button
     document.getElementById('reset-btn').addEventListener('click', () => {
         if (countdownInterval) clearInterval(countdownInterval);
+        if (microInterval) clearInterval(microInterval);
         armed = false;
         accuracyHistory = [];
         document.getElementById('history-list').innerHTML = '';
         document.getElementById('countdown').textContent = '00:00.000';
+        document.getElementById('micro-display').innerHTML = '';
         document.getElementById('calibration-stats').querySelector('div:last-child').innerHTML = 'Not calibrated';
         document.getElementById('target-time').value = '';
         document.getElementById('target-ms').value = '';
@@ -609,6 +655,7 @@
     // Close button
     document.getElementById('close-btn').addEventListener('click', () => {
         if (countdownInterval) clearInterval(countdownInterval);
+        if (microInterval) clearInterval(microInterval);
         panel.remove();
         window.ultraSniperActive = false;
     });
@@ -644,6 +691,7 @@
         panel.style.cursor = 'default';
     });
 
-    console.log('✅ UltraSniper v4.0 (Hybrid Engine) ready!');
+    console.log('✅ UltraSniper v4.1 (Performance.now() Engine) ready!');
     console.log('📝 Enter your own target time and milliseconds');
+    console.log('⚡ Microsecond precision active');
 })();
