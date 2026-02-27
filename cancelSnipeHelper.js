@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cancel Snipe Helper (Greek Fixed - Works on ALL commands)
 // @namespace    http://tampermonkey.net/
-// @version      1.0.6
+// @version      1.0.7
 // @description  Calculate cancel snipe time for Tribal Wars - Works on Support AND Attack commands (Greek fix)
 // @author       RedAlert (Greek fix by dj-asio)
 // @match        https://fyletikesmaxes.gr/game.php*
@@ -119,24 +119,58 @@
         let fullDateStr = '';
         let timePart = '';
 
-        // Extract time part (HH:MM:SS or HH:MM:SS:mmm)
-        const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
+        // Extract time part (HH:MM:SS or HH:MM:SS:mmm) and FIX leading zeros
+        const timeMatch = dateTimeStr.match(/(\d{1,2}):(\d{2}):(\d{2})(?::(\d{3}))?/);
         if (timeMatch) {
-            timePart = timeMatch[1];
+            let hours = timeMatch[1].padStart(2, '0');
+            let minutes = timeMatch[2];
+            let seconds = timeMatch[3];
+            let milliseconds = timeMatch[4] ? timeMatch[4] : '000';
+
+            timePart = `${hours}:${minutes}:${seconds}.${milliseconds}`;
         } else {
-            timePart = '00:00:00';
+            // Try simpler format
+            const simpleMatch = dateTimeStr.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+            if (simpleMatch) {
+                let hours = simpleMatch[1].padStart(2, '0');
+                let minutes = simpleMatch[2];
+                let seconds = simpleMatch[3];
+                timePart = `${hours}:${minutes}:${seconds}.000`;
+            } else {
+                timePart = '00:00:00.000';
+            }
         }
 
-        console.log('Time part:', timePart);
+        console.log('Fixed time part:', timePart);
 
-        // Check if it contains Greek words
-        if (dateTimeStr.includes('σήμερα') || dateTimeStr.toLowerCase().includes('today')) {
-            // Today at XX:XX:XX
-            // Format: YYYY-MM-DDTHH:MM:SS
+        // Check if it contains Greek words or month names
+        if (dateTimeStr.includes('Φεβ') || dateTimeStr.includes('Feb')) {
+            // Handle format like "Φεβ 27, 2026 15:46:40:071"
+            const monthMap = {
+                'Ιαν': '01', 'Φεβ': '02', 'Μαρ': '03', 'Απρ': '04', 'Μαϊ': '05', 'Ιουν': '06',
+                'Ιουλ': '07', 'Αυγ': '08', 'Σεπ': '09', 'Οκτ': '10', 'Νοε': '11', 'Δεκ': '12',
+                'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+                'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+            };
+
+            const monthMatch = dateTimeStr.match(/(\w{3})/);
+            if (monthMatch) {
+                const monthName = monthMatch[1];
+                const monthNum = monthMap[monthName] || month;
+
+                const dayMatch = dateTimeStr.match(/(\d{1,2})/);
+                const dayNum = dayMatch ? dayMatch[1].padStart(2, '0') : day;
+
+                const yearMatch = dateTimeStr.match(/\d{4}/);
+                const yearNum = yearMatch ? yearMatch[0] : year;
+
+                fullDateStr = `${yearNum}-${monthNum}-${dayNum}T${timePart}`;
+            }
+        }
+        else if (dateTimeStr.includes('σήμερα') || dateTimeStr.toLowerCase().includes('today')) {
             fullDateStr = `${year}-${month}-${day}T${timePart}`;
         }
         else if (dateTimeStr.includes('αύριο') || dateTimeStr.toLowerCase().includes('tomorrow')) {
-            // Tomorrow at XX:XX:XX
             const tomorrow = new Date(year, month-1, parseInt(day) + 1);
             const tomorrowYear = tomorrow.getFullYear();
             const tomorrowMonth = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
@@ -149,18 +183,16 @@
             const dateMatch = dateTimeStr.match(/(\d{1,2})[\/\.](\d{1,2})(?:[\/\.](\d{2,4}))?/);
 
             if (dateMatch) {
-                // Has date in format DD/MM or DD/MM/YYYY
                 let inputDay = dateMatch[1].padStart(2, '0');
                 let inputMonth = dateMatch[2].padStart(2, '0');
                 let inputYear = dateMatch[3] || year;
 
                 if (inputYear.length === 2) {
-                    inputYear = '20' + inputYear; // Assume 20xx for 2-digit years
+                    inputYear = '20' + inputYear;
                 }
 
                 fullDateStr = `${inputYear}-${inputMonth}-${inputDay}T${timePart}`;
             } else {
-                // Only time - assume today
                 fullDateStr = `${year}-${month}-${day}T${timePart}`;
             }
         }
@@ -170,21 +202,8 @@
         // Parse to Date object
         const date = new Date(fullDateStr);
 
-        // Check if date is valid
         if (isNaN(date.getTime())) {
             console.log('❌ Failed to parse date:', fullDateStr);
-
-            // Try alternative format (for milliseconds)
-            if (timePart.includes(':')) {
-                const parts = timePart.split(':');
-                if (parts.length === 4) {
-                    // Handle milliseconds separately
-                    const dateWithoutMs = new Date(fullDateStr.split('T')[0] + 'T' + parts.slice(0,3).join(':'));
-                    dateWithoutMs.setMilliseconds(parseInt(parts[3]));
-                    console.log('Alternative parse with ms:', dateWithoutMs.toString());
-                    return dateWithoutMs;
-                }
-            }
             return null;
         }
 
