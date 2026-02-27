@@ -237,68 +237,84 @@
     function showPopup(commandData) {
         console.log('Showing popup with data:', commandData);
 
-        // Parse times
+        // Parse arrival time from command
         const arrivalDate = parseGreekDateTime(commandData.arrival);
         if (!arrivalDate) {
             alert('❌ Could not parse arrival time');
             return;
         }
 
+        // Parse duration
         const durationSeconds = parseDuration(commandData.duration);
         if (!durationSeconds) {
             alert('❌ Could not parse duration');
             return;
         }
 
-        // Calculate departure time (arrival - duration)
+        // Calculate departure time (when the support LEFT the village)
         const departureTime = new Date(arrivalDate.getTime() - (durationSeconds * 1000));
 
-        console.log('Departure time:', departureTime.toString());
-        console.log('Arrival time:', arrivalDate.toString());
+        // Get current server time
+        const serverDateEl = document.getElementById('serverDate');
+        const serverTimeEl = document.getElementById('serverTime');
+        const [day, month, year] = serverDateEl.textContent.trim().split('/');
+        const timeMatch = serverTimeEl.textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
+
+        const currentServerTime = new Date(year, month-1, day,
+            parseInt(timeMatch[1]), parseInt(timeMatch[2]), parseInt(timeMatch[3]));
+
+        console.log('Current server time:', currentServerTime.toString());
+        console.log('Departure time (support left):', departureTime.toString());
+        console.log('Support arrival time:', arrivalDate.toString());
 
         // Create popup
         const popup = document.createElement('div');
         popup.style.cssText = `
-            position: fixed;
-            top: 50px;
-            right: 20px;
-            width: 350px;
-            background: #f4e4bc;
-            border: 2px solid #7d510f;
-            border-radius: 10px;
-            padding: 15px;
-            z-index: 99999;
-            font-family: Arial, sans-serif;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-        `;
+        position: fixed;
+        top: 50px;
+        right: 20px;
+        width: 400px;
+        background: #f4e4bc;
+        border: 2px solid #7d510f;
+        border-radius: 10px;
+        padding: 15px;
+        z-index: 99999;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    `;
 
         popup.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #7d510f; padding-bottom: 10px;">
-                <h3 style="margin: 0; color: #603000;">🎯 Cancel Snipe Helper</h3>
-                <button id="closePopup" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #603000;">✖</button>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Ώρα άφιξης ευγενή:</label>
-                <input type="text" id="nobleTime" style="width: 100%; padding: 8px; border: 1px solid #7d510f; border-radius: 4px;" placeholder="π.χ. σήμερα στις 16:00:00">
-            </div>
-            
-            <div style="margin-bottom: 15px; text-align: center;">
-                <button id="calculateBtn" style="background: #c1a264; color: white; border: 1px solid #7d510f; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">Υπολογισμός</button>
-            </div>
-            
-            <div id="resultArea" style="display: none; border-top: 1px solid #7d510f; padding-top: 15px;">
-                <p><strong>Ώρα αναχώρησης:</strong> <span id="departureTime">${departureTime.toLocaleString('el-GR')}</span></p>
-                <p><strong>Ώρα άφιξης υποστήριξης:</strong> <span id="supportArrival">${arrivalDate.toLocaleString('el-GR')}</span></p>
-                <hr>
-                <p><strong>Ώρα ακύρωσης:</strong> <span id="cancelTime" style="color: #3236a8; font-weight: bold;"></span></p>
-                <p><strong>Ακύρωση σε:</strong> <span id="cancelIn" style="color: #ff0000; font-weight: bold;"></span></p>
-            </div>
-            
-            <div style="margin-top: 15px; font-size: 11px; text-align: center; color: #666;">
-                v1.0.6 - Δουλεύει σε Support και Attack commands
-            </div>
-        `;
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #7d510f; padding-bottom: 10px;">
+            <h3 style="margin: 0; color: #603000;">🎯 Cancel Snipe Helper</h3>
+            <button id="closePopup" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #603000;">✖</button>
+        </div>
+
+        <div style="margin-bottom: 10px; padding: 8px; background: #e8d8b0; border-radius: 4px;">
+            <p style="margin: 2px 0;"><strong>Ώρα αναχώρησης υποστήριξης:</strong> ${departureTime.toLocaleString('el-GR')}</p>
+            <p style="margin: 2px 0;"><strong>Ώρα άφιξης υποστήριξης:</strong> ${arrivalDate.toLocaleString('el-GR')}</p>
+            <p style="margin: 2px 0;"><strong>Τρέχουσα ώρα server:</strong> ${currentServerTime.toLocaleString('el-GR')}</p>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Ώρα άφιξης ευγενή:</label>
+            <input type="text" id="nobleTime" style="width: 100%; padding: 8px; border: 1px solid #7d510f; border-radius: 4px;" 
+                placeholder="π.χ. σήμερα στις 16:00:00 ή 16:00:00">
+        </div>
+
+        <div style="margin-bottom: 15px; text-align: center;">
+            <button id="calculateBtn" style="background: #c1a264; color: white; border: 1px solid #7d510f; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">Υπολογισμός</button>
+        </div>
+
+        <div id="resultArea" style="display: none; border-top: 1px solid #7d510f; padding-top: 15px;">
+            <p><strong>Ώρα ακύρωσης:</strong> <span id="cancelTime" style="color: #3236a8; font-weight: bold;"></span></p>
+            <p><strong>Ακύρωση σε:</strong> <span id="cancelIn" style="color: #ff0000; font-weight: bold;"></span></p>
+            <p><strong>Ακύρωση σε ms:</strong> <span id="cancelInMs" style="color: #666; font-size: 11px;"></span></p>
+        </div>
+
+        <div style="margin-top: 15px; font-size: 11px; text-align: center; color: #666;">
+            v1.0.7 - Δουλεύει σε Support και Attack commands
+        </div>
+    `;
 
         document.body.appendChild(popup);
 
@@ -323,24 +339,26 @@
 
             console.log('Noble arrival:', nobleDate.toString());
 
-            // Calculate cancel time = (noble arrival + departure time) / 2
+            // ΣΩΣΤΗ φόρμουλα: (noble arrival + support departure) / 2
             const cancelTime = new Date((nobleDate.getTime() + departureTime.getTime()) / 2);
             console.log('Cancel time:', cancelTime.toString());
 
-            // Calculate time until cancel
-            const now = new Date();
-            const serverTimeMatch = document.getElementById('serverTime').textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
-            if (serverTimeMatch) {
-                now.setHours(parseInt(serverTimeMatch[1]));
-                now.setMinutes(parseInt(serverTimeMatch[2]));
-                now.setSeconds(parseInt(serverTimeMatch[3]));
-            }
+            // Compare with current server time
+            const serverDateEl = document.getElementById('serverDate');
+            const serverTimeEl = document.getElementById('serverTime');
+            const [sDay, sMonth, sYear] = serverDateEl.textContent.trim().split('/');
+            const sTimeMatch = serverTimeEl.textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
+
+            const now = new Date(sYear, sMonth-1, sDay,
+                parseInt(sTimeMatch[1]), parseInt(sTimeMatch[2]), parseInt(sTimeMatch[3]));
 
             const msUntilCancel = cancelTime.getTime() - now.getTime();
 
+            document.getElementById('resultArea').style.display = 'block';
+            document.getElementById('cancelTime').textContent = cancelTime.toLocaleString('el-GR');
+            document.getElementById('cancelInMs').textContent = msUntilCancel + ' ms';
+
             if (msUntilCancel < 0) {
-                document.getElementById('resultArea').style.display = 'block';
-                document.getElementById('cancelTime').textContent = cancelTime.toLocaleString('el-GR');
                 document.getElementById('cancelIn').textContent = '⏰ Η ώρα πέρασε!';
                 return;
             }
@@ -350,22 +368,21 @@
             const minutes = Math.floor((secondsUntilCancel % 3600) / 60);
             const seconds = secondsUntilCancel % 60;
 
-            document.getElementById('resultArea').style.display = 'block';
-            document.getElementById('cancelTime').textContent = cancelTime.toLocaleString('el-GR');
             document.getElementById('cancelIn').textContent =
                 `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
             // Start countdown
             const timer = setInterval(function() {
-                const now2 = new Date();
-                const serverTimeMatch2 = document.getElementById('serverTime').textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
-                if (serverTimeMatch2) {
-                    now2.setHours(parseInt(serverTimeMatch2[1]));
-                    now2.setMinutes(parseInt(serverTimeMatch2[2]));
-                    now2.setSeconds(parseInt(serverTimeMatch2[3]));
-                }
+                const serverDateEl2 = document.getElementById('serverDate');
+                const serverTimeEl2 = document.getElementById('serverTime');
+                const [sDay2, sMonth2, sYear2] = serverDateEl2.textContent.trim().split('/');
+                const sTimeMatch2 = serverTimeEl2.textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
+
+                const now2 = new Date(sYear2, sMonth2-1, sDay2,
+                    parseInt(sTimeMatch2[1]), parseInt(sTimeMatch2[2]), parseInt(sTimeMatch2[3]));
 
                 const remaining = cancelTime.getTime() - now2.getTime();
+
                 if (remaining <= 0) {
                     clearInterval(timer);
                     document.getElementById('cancelIn').textContent = '00:00:00';
@@ -379,7 +396,8 @@
 
                 document.getElementById('cancelIn').textContent =
                     `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            }, 1000);
+                document.getElementById('cancelInMs').textContent = remaining + ' ms';
+            }, 100);
         };
 
         // Make draggable
