@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Cancel Snipe Helper (Greek Fixed)
+// @name         Cancel Snipe Helper (Greek Fixed - Works on ALL commands)
 // @namespace    http://tampermonkey.net/
-// @version      1.0.5
-// @description  Calculate cancel snipe time for Tribal Wars (Greek servers fix)
+// @version      1.0.6
+// @description  Calculate cancel snipe time for Tribal Wars - Works on Support AND Attack commands (Greek fix)
 // @author       RedAlert (Greek fix by dj-asio)
 // @match        https://fyletikesmaxes.gr/game.php*
 // @match        https://*.fyletikesmaxes.gr/game.php*
@@ -13,1131 +13,350 @@
 (function() {
     'use strict';
 
+    console.log('🚀 Cancel Snipe Helper starting...');
+
     // User Input
-    if (typeof DEBUG !== 'boolean') var DEBUG = false;
+    if (typeof DEBUG !== 'boolean') var DEBUG = true; // Turn on debug temporarily
 
-    // Script Config
-    var scriptConfig = {
-        scriptData: {
-            prefix: 'cancelSnipe',
-            name: 'Cancel Snipe Helper',
-            version: 'v1.0.4',
-            author: 'RedAlert',
-            authorUrl: 'https://twscripts.dev/',
-            helpLink: 'https://forum.tribalwars.net/index.php?threads/cancel-snipe-helper.288098/',
-        },
-        translations: {
-            en_DK: {
-                'Cancel Snipe Helper': 'Cancel Snipe Helper',
-                Help: 'Help',
-                'Go to Command then run script!': 'Go to Command then run script!',
-                'There was an error!': 'There was an error!',
-                'Enter landing time:': 'Enter landing time:',
-                'Calculate Cancel Snipe': 'Calculate Cancel Snipe',
-                'This field is required!': 'This field is required!',
-                'Server Time:': 'Server Time:',
-                'Cancel Time:': 'Cancel Time:',
-                'Cancel In:': 'Cancel In:',
-                'Cancel snipe is not possible!': 'Cancel snipe is not possible!',
-            },
-            el_GR: {
-                'Cancel Snipe Helper': 'Cancel Snipe Helper',
-                Help: 'Βοήθεια',
-                'Go to Command then run script!': 'Πήγαινε σε μια εντολή και τρέξε το script!',
-                'There was an error!': 'Υπήρξε σφάλμα!',
-                'Enter landing time:': 'Ώρα άφιξης επίθεσης:',
-                'Calculate Cancel Snipe': 'Υπολογισμός',
-                'This field is required!': 'Αυτό το πεδίο είναι υποχρεωτικό!',
-                'Server Time:': 'Ώρα Server:',
-                'Cancel Time:': 'Ώρα Ακύρωσης:',
-                'Cancel In:': 'Ακύρωση σε:',
-                'Cancel snipe is not possible!': 'Δεν είναι δυνατό το cancel snipe!',
-            },
-        },
-        allowedMarkets: [],
-        allowedScreens: ['info_command'],
-        allowedModes: [],
-        isDebug: DEBUG,
-        enableCountApi: true,
-    };
+    // Wait for page to fully load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 
-    window.twSDK = {
-        // variables
-        scriptData: {},
-        translations: {},
-        allowedMarkets: [],
-        allowedScreens: [],
-        allowedModes: [],
-        enableCountApi: true,
-        isDebug: false,
-        isMobile: jQuery('#mobileHeader').length > 0,
-        delayBetweenRequests: 200,
-        // helper variables
-        market: game_data.market,
-        units: game_data.units,
-        village: game_data.village,
-        buildings: game_data.village.buildings,
-        sitterId: game_data.player.sitter > 0 ? `&t=${game_data.player.id}` : '',
-        coordsRegex: /\d{1,3}\|\d{1,3}/g,
-        dateTimeMatch: /(?:[A-Z][a-z]{2}\s+\d{1,2},\s*\d{0,4}\s+|today\s+at\s+|tomorrow\s+at\s+|σήμερα\s+στις\s+|αύριο\s+στις\s+)\d{1,2}:\d{2}:\d{2}:?\.?\d{0,3}/,
-        worldInfoInterface: '/interface.php?func=get_config',
-        unitInfoInterface: '/interface.php?func=get_unit_info',
-        buildingInfoInterface: '/interface.php?func=get_building_info',
-        worldDataVillages: '/map/village.txt',
-        worldDataPlayers: '/map/player.txt',
-        worldDataTribes: '/map/ally.txt',
-        worldDataConquests: '/map/conquer_extended.txt',
-        // game constants
-        buildingsList: [
-            'main', 'barracks', 'stable', 'garage', 'church', 'church_f',
-            'watchtower', 'snob', 'smith', 'place', 'statue', 'market',
-            'wood', 'stone', 'iron', 'farm', 'storage', 'hide', 'wall',
-        ],
-        buildingPoints: {
-            main: [10, 2, 2, 3, 4, 4, 5, 6, 7, 9, 10, 12, 15, 18, 21, 26, 31, 37, 44, 53, 64, 77, 92, 110, 133, 159, 191, 229, 274, 330],
-            barracks: [16, 3, 4, 5, 5, 7, 8, 9, 12, 14, 16, 20, 24, 28, 34, 42, 49, 59, 71, 85, 102, 123, 147, 177, 212],
-            stable: [20, 4, 5, 6, 6, 9, 10, 12, 14, 17, 21, 25, 29, 36, 43, 51, 62, 74, 88, 107],
-            garage: [24, 5, 6, 6, 9, 10, 12, 14, 17, 21, 25, 29, 36, 43, 51],
-            chuch: [10, 2, 2],
-            church_f: [10],
-            watchtower: [42, 8, 10, 13, 14, 18, 20, 25, 31, 36, 43, 52, 62, 75, 90, 108, 130, 155, 186, 224],
-            snob: [512],
-            smith: [19, 4, 4, 6, 6, 8, 10, 11, 14, 16, 20, 23, 28, 34, 41, 49, 58, 71, 84, 101],
-            place: [0],
-            statue: [24],
-            market: [10, 2, 2, 3, 4, 4, 5, 6, 7, 9, 10, 12, 15, 18, 21, 26, 31, 37, 44, 53, 64, 77, 92, 110, 133],
-            wood: [6, 1, 2, 1, 2, 3, 3, 3, 5, 5, 6, 8, 8, 11, 13, 15, 19, 22, 27, 32, 38, 46, 55, 66, 80, 95, 115, 137, 165, 198],
-            stone: [6, 1, 2, 1, 2, 3, 3, 3, 5, 5, 6, 8, 8, 11, 13, 15, 19, 22, 27, 32, 38, 46, 55, 66, 80, 95, 115, 137, 165, 198],
-            iron: [6, 1, 2, 1, 2, 3, 3, 3, 5, 5, 6, 8, 8, 11, 13, 15, 19, 22, 27, 32, 38, 46, 55, 66, 80, 95, 115, 137, 165, 198],
-            farm: [5, 1, 1, 2, 1, 2, 3, 3, 3, 5, 5, 6, 8, 8, 11, 13, 15, 19, 22, 27, 32, 38, 46, 55, 66, 80, 95, 115, 137, 165],
-            storage: [6, 1, 2, 1, 2, 3, 3, 3, 5, 5, 6, 8, 8, 11, 13, 15, 19, 22, 27, 32, 38, 46, 55, 66, 80, 95, 115, 137, 165, 198],
-            hide: [5, 1, 1, 2, 1, 2, 3, 3, 3, 5],
-            wall: [8, 2, 2, 2, 3, 3, 4, 5, 5, 7, 9, 9, 12, 15, 17, 20, 25, 29, 36, 43],
-        },
-        unitsFarmSpace: {
-            spear: 1, sword: 1, axe: 1, archer: 1, spy: 2, light: 4,
-            marcher: 5, heavy: 6, ram: 5, catapult: 8, knight: 10, snob: 100,
-        },
-        resPerHour: {
-            0: 2, 1: 30, 2: 35, 3: 41, 4: 47, 5: 55, 6: 64, 7: 74, 8: 86, 9: 100,
-            10: 117, 11: 136, 12: 158, 13: 184, 14: 214, 15: 249, 16: 289, 17: 337,
-            18: 391, 19: 455, 20: 530, 21: 616, 22: 717, 23: 833, 24: 969, 25: 1127,
-            26: 1311, 27: 1525, 28: 1774, 29: 2063, 30: 2400,
-        },
-        watchtowerLevels: [1.1, 1.3, 1.5, 1.7, 2, 2.3, 2.6, 3, 3.4, 3.9, 4.4, 5.1, 5.8, 6.7, 7.6, 8.7, 10, 11.5, 13.1, 15],
+    function init() {
+        console.log('📋 Checking if on command page...');
 
-        // internal methods
-        _initDebug: function() {
-            const scriptInfo = this.scriptInfo();
-            console.debug(`${scriptInfo} It works 🚀!`);
-            console.debug(`${scriptInfo} HELP:`, this.scriptData.helpLink);
-            if (this.isDebug) {
-                console.debug(`${scriptInfo} Market:`, game_data.market);
-                console.debug(`${scriptInfo} World:`, game_data.world);
-                console.debug(`${scriptInfo} Screen:`, game_data.screen);
-                console.debug(`${scriptInfo} Game Version:`, game_data.majorVersion);
-                console.debug(`${scriptInfo} Game Build:`, game_data.version);
-                console.debug(`${scriptInfo} Locale:`, game_data.locale);
-                console.debug(`${scriptInfo} PA:`, game_data.features.Premium.active);
-                console.debug(`${scriptInfo} LA:`, game_data.features.FarmAssistent.active);
-                console.debug(`${scriptInfo} AM:`, game_data.features.AccountManager.active);
+        // Check if on correct screen
+        const urlParams = new URLSearchParams(window.location.search);
+        const screen = urlParams.get('screen');
+
+        if (screen !== 'info_command') {
+            alert('❌ This script only works on command pages!\nΠήγαινε σε μια εντολή (support ή attack)');
+            return;
+        }
+
+        // Try to read command data
+        try {
+            const commandData = readCommandData();
+            if (!commandData) {
+                alert('❌ Could not read command data!\nΔεν μπόρεσα να διαβάσω τα στοιχεία της εντολής');
+                return;
             }
-        },
 
-        // public methods
-        addGlobalStyle: function() {
-            return `
-                /* Table Styling */
-                .ra-table-container { overflow-y: auto; overflow-x: hidden; height: auto; max-height: 400px; }
-                .ra-table th { font-size: 14px; }
-                .ra-table th label { margin: 0; padding: 0; }
-                .ra-table th,
-                .ra-table td { padding: 5px; text-align: center; }
-                .ra-table td a { word-break: break-all; }
-                .ra-table a:focus { color: blue; }
-                .ra-table a.btn:focus { color: #fff; }
-                .ra-table tr:nth-of-type(2n) td { background-color: #f0e2be }
-                .ra-table tr:nth-of-type(2n+1) td { background-color: #fff5da; }
-                .ra-table-v2 th,
-                .ra-table-v2 td { text-align: left; }
-                .ra-table-v3 { border: 2px solid #bd9c5a; }
-                .ra-table-v3 th,
-                .ra-table-v3 td { border-collapse: separate; border: 1px solid #bd9c5a; text-align: left; }
-                /* Inputs */
-                .ra-textarea { width: 100%; height: 80px; resize: none; }
-                /* Popup */
-                .ra-popup-content { width: 360px; }
-                .ra-popup-content * { box-sizing: border-box; }
-                .ra-popup-content input[type="text"] { padding: 3px; width: 100%; }
-                .ra-popup-content .btn-confirm-yes { padding: 3px !important; }
-                .ra-popup-content label { display: block; margin-bottom: 5px; font-weight: 600; }
-                .ra-popup-content > div { margin-bottom: 15px; }
-                .ra-popup-content > div:last-child { margin-bottom: 0 !important; }
-                .ra-popup-content textarea { width: 100%; height: 100px; resize: none; }
-                /* Elements */
-                .ra-details { display: block; margin-bottom: 8px; border: 1px solid #603000; padding: 8px; border-radius: 4px; }
-                .ra-details summary { font-weight: 600; cursor: pointer; }
-                .ra-details p { margin: 10px 0 0 0; padding: 0; }
-                /* Helpers */
-                .ra-pa5 { padding: 5px !important; }
-                .ra-mt15 { margin-top: 15px !important; }
-                .ra-mb10 { margin-bottom: 10px !important; }
-                .ra-mb15 { margin-bottom: 15px !important; }
-                .ra-tal { text-align: left !important; }
-                .ra-tac { text-align: center !important; }
-                .ra-tar { text-align: right !important; }
-                /* RESPONSIVE */
-                @media (max-width: 480px) {
-                    .ra-fixed-widget { position: relative !important; top: 0; left: 0; display: block; width: auto; height: auto; z-index: 1; }
-                    .ra-box-widget { position: relative; display: block; box-sizing: border-box; width: 97%; height: auto; margin: 10px auto; }
-                    .ra-table { border-collapse: collapse !important; }
-                    .custom-close-button { display: none; }
-                    .ra-fixed-widget h3 { margin-bottom: 15px; }
-                    .ra-popup-content { width: 100%; }
+            console.log('✅ Command data loaded:', commandData);
+            showPopup(commandData);
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('❌ Error: ' + error.message);
+        }
+    }
+
+    function readCommandData() {
+        // Find the command info table
+        const tables = document.getElementsByClassName('vis');
+        if (!tables || tables.length === 0) {
+            console.log('No vis table found');
+            return null;
+        }
+
+        const table = tables[0];
+        let duration = null;
+        let arrival = null;
+
+        // Try different possible row positions
+        for (let i = 0; i < table.rows.length; i++) {
+            const row = table.rows[i];
+            const cells = row.cells;
+
+            if (cells.length < 2) continue;
+
+            const label = cells[0].textContent.trim().toLowerCase();
+            const value = cells[1].textContent.trim();
+
+            console.log(`Row ${i}: "${label}" -> "${value}"`);
+
+            if (label.includes('διάρκεια') || label.includes('duration')) {
+                duration = value;
+                console.log('✅ Found duration:', duration);
+            }
+            if (label.includes('άφιξη') || label.includes('arrival')) {
+                arrival = value;
+                console.log('✅ Found arrival:', arrival);
+            }
+        }
+
+        if (!duration || !arrival) {
+            console.log('❌ Could not find duration or arrival');
+            return null;
+        }
+
+        return { duration, arrival };
+    }
+
+    function parseGreekDateTime(dateTimeStr) {
+        console.log('Parsing date:', dateTimeStr);
+
+        // Remove HTML tags if any
+        dateTimeStr = dateTimeStr.replace(/<[^>]*>/g, '').trim();
+
+        // Get current server date
+        const serverDateEl = document.getElementById('serverDate');
+        const serverTimeEl = document.getElementById('serverTime');
+
+        if (!serverDateEl || !serverTimeEl) {
+            console.log('❌ Could not find server time elements');
+            return null;
+        }
+
+        const serverDate = serverDateEl.textContent.trim();
+        const [day, month, year] = serverDate.split('/');
+
+        console.log('Server date:', serverDate, 'Time:', serverTimeEl.textContent);
+
+        // Handle different date formats
+        let fullDateStr = dateTimeStr;
+
+        // Check if it contains Greek words
+        if (dateTimeStr.includes('σήμερα') || dateTimeStr.toLowerCase().includes('today')) {
+            // Today at XX:XX:XX
+            const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
+            if (timeMatch) {
+                fullDateStr = `${year}-${month}-${day} ${timeMatch[1]}`;
+            }
+        }
+        else if (dateTimeStr.includes('αύριο') || dateTimeStr.toLowerCase().includes('tomorrow')) {
+            // Tomorrow at XX:XX:XX
+            const tomorrow = new Date(year, month-1, parseInt(day) + 1);
+            const tomorrowDay = tomorrow.getDate().toString().padStart(2, '0');
+            const tomorrowMonth = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
+            const tomorrowYear = tomorrow.getFullYear();
+
+            const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
+            if (timeMatch) {
+                fullDateStr = `${tomorrowYear}-${tomorrowMonth}-${tomorrowDay} ${timeMatch[1]}`;
+            }
+        }
+        else {
+            // Try to parse as is
+            const dateMatch = dateTimeStr.match(/(\d{1,2})[\/\.](\d{1,2})/);
+            const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
+
+            if (dateMatch && timeMatch) {
+                // Has date and time
+                fullDateStr = `${year}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')} ${timeMatch[1]}`;
+            } else if (timeMatch) {
+                // Only time - assume today
+                fullDateStr = `${year}-${month}-${day} ${timeMatch[1]}`;
+            }
+        }
+
+        console.log('Parsed date string:', fullDateStr);
+
+        // Parse to Date object
+        const date = new Date(fullDateStr.replace(' ', 'T').replace(/:/g, (match, offset, str) => {
+            // Handle milliseconds properly
+            return offset === str.length - 3 ? '.' : ':';
+        }));
+
+        console.log('Parsed Date object:', date.toString());
+        return date;
+    }
+
+    function parseDuration(durationStr) {
+        console.log('Parsing duration:', durationStr);
+
+        // Remove HTML and trim
+        durationStr = durationStr.replace(/<[^>]*>/g, '').trim();
+
+        // Match time format HH:MM:SS
+        const timeMatch = durationStr.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+        if (!timeMatch) {
+            console.log('❌ Could not parse duration');
+            return null;
+        }
+
+        const hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const seconds = parseInt(timeMatch[3]);
+
+        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        console.log('Duration in seconds:', totalSeconds);
+
+        return totalSeconds;
+    }
+
+    function showPopup(commandData) {
+        console.log('Showing popup with data:', commandData);
+
+        // Parse times
+        const arrivalDate = parseGreekDateTime(commandData.arrival);
+        if (!arrivalDate) {
+            alert('❌ Could not parse arrival time');
+            return;
+        }
+
+        const durationSeconds = parseDuration(commandData.duration);
+        if (!durationSeconds) {
+            alert('❌ Could not parse duration');
+            return;
+        }
+
+        // Calculate departure time (arrival - duration)
+        const departureTime = new Date(arrivalDate.getTime() - (durationSeconds * 1000));
+
+        console.log('Departure time:', departureTime.toString());
+        console.log('Arrival time:', arrivalDate.toString());
+
+        // Create popup
+        const popup = document.createElement('div');
+        popup.style.cssText = `
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            width: 350px;
+            background: #f4e4bc;
+            border: 2px solid #7d510f;
+            border-radius: 10px;
+            padding: 15px;
+            z-index: 99999;
+            font-family: Arial, sans-serif;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        `;
+
+        popup.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #7d510f; padding-bottom: 10px;">
+                <h3 style="margin: 0; color: #603000;">🎯 Cancel Snipe Helper</h3>
+                <button id="closePopup" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #603000;">✖</button>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 5px;">Ώρα άφιξης ευγενή:</label>
+                <input type="text" id="nobleTime" style="width: 100%; padding: 8px; border: 1px solid #7d510f; border-radius: 4px;" placeholder="π.χ. σήμερα στις 16:00:00">
+            </div>
+            
+            <div style="margin-bottom: 15px; text-align: center;">
+                <button id="calculateBtn" style="background: #c1a264; color: white; border: 1px solid #7d510f; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">Υπολογισμός</button>
+            </div>
+            
+            <div id="resultArea" style="display: none; border-top: 1px solid #7d510f; padding-top: 15px;">
+                <p><strong>Ώρα αναχώρησης:</strong> <span id="departureTime">${departureTime.toLocaleString('el-GR')}</span></p>
+                <p><strong>Ώρα άφιξης υποστήριξης:</strong> <span id="supportArrival">${arrivalDate.toLocaleString('el-GR')}</span></p>
+                <hr>
+                <p><strong>Ώρα ακύρωσης:</strong> <span id="cancelTime" style="color: #3236a8; font-weight: bold;"></span></p>
+                <p><strong>Ακύρωση σε:</strong> <span id="cancelIn" style="color: #ff0000; font-weight: bold;"></span></p>
+            </div>
+            
+            <div style="margin-top: 15px; font-size: 11px; text-align: center; color: #666;">
+                v1.0.6 - Δουλεύει σε Support και Attack commands
+            </div>
+        `;
+
+        document.body.appendChild(popup);
+
+        // Close button
+        document.getElementById('closePopup').onclick = function() {
+            popup.remove();
+        };
+
+        // Calculate button
+        document.getElementById('calculateBtn').onclick = function() {
+            const nobleTimeStr = document.getElementById('nobleTime').value.trim();
+            if (!nobleTimeStr) {
+                alert('Παρακαλώ βάλε ώρα άφιξης του ευγενή');
+                return;
+            }
+
+            const nobleDate = parseGreekDateTime(nobleTimeStr);
+            if (!nobleDate) {
+                alert('Δεν μπόρεσα να διαβάσω την ώρα. Χρησιμοποίησε μορφή όπως: σήμερα στις 16:00:00');
+                return;
+            }
+
+            console.log('Noble arrival:', nobleDate.toString());
+
+            // Calculate cancel time = (noble arrival + departure time) / 2
+            const cancelTime = new Date((nobleDate.getTime() + departureTime.getTime()) / 2);
+            console.log('Cancel time:', cancelTime.toString());
+
+            // Calculate time until cancel
+            const now = new Date();
+            const serverTimeMatch = document.getElementById('serverTime').textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
+            if (serverTimeMatch) {
+                now.setHours(parseInt(serverTimeMatch[1]));
+                now.setMinutes(parseInt(serverTimeMatch[2]));
+                now.setSeconds(parseInt(serverTimeMatch[3]));
+            }
+
+            const msUntilCancel = cancelTime.getTime() - now.getTime();
+
+            if (msUntilCancel < 0) {
+                document.getElementById('resultArea').style.display = 'block';
+                document.getElementById('cancelTime').textContent = cancelTime.toLocaleString('el-GR');
+                document.getElementById('cancelIn').textContent = '⏰ Η ώρα πέρασε!';
+                return;
+            }
+
+            const secondsUntilCancel = Math.floor(msUntilCancel / 1000);
+            const hours = Math.floor(secondsUntilCancel / 3600);
+            const minutes = Math.floor((secondsUntilCancel % 3600) / 60);
+            const seconds = secondsUntilCancel % 60;
+
+            document.getElementById('resultArea').style.display = 'block';
+            document.getElementById('cancelTime').textContent = cancelTime.toLocaleString('el-GR');
+            document.getElementById('cancelIn').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            // Start countdown
+            const timer = setInterval(function() {
+                const now2 = new Date();
+                const serverTimeMatch2 = document.getElementById('serverTime').textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
+                if (serverTimeMatch2) {
+                    now2.setHours(parseInt(serverTimeMatch2[1]));
+                    now2.setMinutes(parseInt(serverTimeMatch2[2]));
+                    now2.setSeconds(parseInt(serverTimeMatch2[3]));
                 }
-            `;
-        },
 
-        addScriptToQuickbar: function(name, script, callback) {
-            let scriptData = `hotkey=&name=${name}&href=${encodeURI(script)}`;
-            let action = '/game.php?screen=settings&mode=quickbar_edit&action=quickbar_edit&';
-            jQuery.ajax({
-                url: action,
-                type: 'POST',
-                data: scriptData + `&h=${csrf_token}`,
-                success: function() {
-                    if (typeof callback === 'function') callback();
-                },
-            });
-        },
-
-        arraysIntersection: function() {
-            var result = [];
-            var lists = (arguments.length === 1) ? arguments[0] : arguments;
-            for (var i = 0; i < lists.length; i++) {
-                var currentList = lists[i];
-                for (var y = 0; y < currentList.length; y++) {
-                    var currentValue = currentList[y];
-                    if (result.indexOf(currentValue) === -1) {
-                        var existsInAll = true;
-                        for (var x = 0; x < lists.length; x++) {
-                            if (lists[x].indexOf(currentValue) === -1) {
-                                existsInAll = false;
-                                break;
-                            }
-                        }
-                        if (existsInAll) result.push(currentValue);
-                    }
-                }
-            }
-            return result;
-        },
-
-        buildUnitsPicker: function(selectedUnits = [], unitsToIgnore, type = 'checkbox') {
-            let unitsTable = ``;
-            let thUnits = ``;
-            let tableRow = ``;
-            game_data.units.forEach((unit) => {
-                if (!unitsToIgnore.includes(unit)) {
-                    let checked = selectedUnits.includes(unit) ? `checked` : '';
-                    thUnits += `<th class="ra-tac"><label for="unit_${unit}"><img src="/graphic/unit/unit_${unit}.png"></label></th>`;
-                    tableRow += `<td class="ra-tac"><input name="ra_chosen_units" type="${type}" ${checked} id="unit_${unit}" class="ra-unit-selector" value="${unit}" /></td>`;
-                }
-            });
-            unitsTable = `<table class="ra-table ra-table-v2" width="100%" id="raUnitSelector"><thead><tr>${thUnits}</tr></thead><tbody><tr>${tableRow}</tr></tbody></table>`;
-            return unitsTable;
-        },
-
-        calculateCoinsNeededForNthNoble: function(noble) {
-            return (noble * noble + noble) / 2;
-        },
-
-        calculateDistanceFromCurrentVillage: function(coord) {
-            const x1 = game_data.village.x;
-            const y1 = game_data.village.y;
-            const [x2, y2] = coord.split('|');
-            const deltaX = Math.abs(x1 - x2);
-            const deltaY = Math.abs(y1 - y2);
-            return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        },
-
-        calculateDistance: function(from, to) {
-            const [x1, y1] = from.split('|');
-            const [x2, y2] = to.split('|');
-            const deltaX = Math.abs(x1 - x2);
-            const deltaY = Math.abs(y1 - y2);
-            return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        },
-
-        calculatePercentages: function(amount, total) {
-            if (amount === undefined) amount = 0;
-            return parseFloat((amount / total) * 100).toFixed(2);
-        },
-
-        calculateTimesByDistance: async function(distance) {
-            const _self = this;
-            const times = [];
-            const travelTimes = [];
-            const unitInfo = await _self.getWorldUnitInfo();
-            const worldConfig = await _self.getWorldConfig();
-            for (let [key, value] of Object.entries(unitInfo.config)) {
-                times.push(value.speed);
-            }
-            const { speed, unit_speed } = worldConfig.config;
-            times.forEach((time) => {
-                let travelTime = Math.round((distance * time * 60) / speed / unit_speed);
-                travelTime = _self.secondsToHms(travelTime);
-                travelTimes.push(travelTime);
-            });
-            return travelTimes;
-        },
-
-        checkValidLocation: function(type) {
-            switch (type) {
-                case 'screen': return this.allowedScreens.includes(this.getParameterByName('screen'));
-                case 'mode': return this.allowedModes.includes(this.getParameterByName('mode'));
-                default: return false;
-            }
-        },
-
-        checkValidMarket: function() {
-            if (this.market === 'yy') return true;
-            return this.allowedMarkets.includes(this.market);
-        },
-
-        cleanString: function(string) {
-            try {
-                return decodeURIComponent(string).replace(/\+/g, ' ');
-            } catch (error) {
-                console.error(error, string);
-                return string;
-            }
-        },
-
-        copyToClipboard: function(string) {
-            navigator.clipboard.writeText(string);
-        },
-
-        createUUID: function() {
-            return crypto.randomUUID();
-        },
-
-        csvToArray: function(strData, strDelimiter = ',') {
-            var objPattern = new RegExp('(\\' + strDelimiter + '|\\r?\\n|\\r|^)' + '(?:"([^"]*(?:""[^"]*)*)"|' + '([^"\\' + strDelimiter + '\\r\\n]*))', 'gi');
-            var arrData = [[]];
-            var arrMatches = null;
-            while ((arrMatches = objPattern.exec(strData))) {
-                var strMatchedDelimiter = arrMatches[1];
-                if (strMatchedDelimiter.length && strMatchedDelimiter !== strDelimiter) {
-                    arrData.push([]);
-                }
-                var strMatchedValue = arrMatches[2] ? arrMatches[2].replace(new RegExp('""', 'g'), '"') : arrMatches[3];
-                arrData[arrData.length - 1].push(strMatchedValue);
-            }
-            return arrData;
-        },
-
-        decryptAccountManangerTemplate: function(exportedTemplate) {
-            const buildings = [];
-            const binaryString = atob(exportedTemplate);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            const payloadLength = bytes[0] + bytes[1] * 256;
-            if (payloadLength <= bytes.length - 2) {
-                const payload = bytes.slice(2, 2 + payloadLength);
-                for (let i = 0; i < payload.length; i += 2) {
-                    const buildingId = payload[i];
-                    const buildingLevel = payload[i + 1];
-                    if (this.buildingsList[buildingId]) {
-                        buildings.push({ id: this.buildingsList[buildingId], upgrade: `+${buildingLevel}` });
-                    }
-                }
-            }
-            return buildings;
-        },
-
-        filterVillagesByPlayerIds: function(playerIds, villages) {
-            const playerVillages = [];
-            villages.forEach((village) => {
-                if (playerIds.includes(parseInt(village[4]))) {
-                    const coordinate = village[2] + '|' + village[3];
-                    playerVillages.push(coordinate);
-                }
-            });
-            return playerVillages;
-        },
-
-        formatAsNumber: function(number) {
-            return parseInt(number).toLocaleString('de');
-        },
-
-        formatDateTime: function(dateTime) {
-            dateTime = new Date(dateTime);
-            return this.zeroPad(dateTime.getDate(), 2) + '/' +
-                this.zeroPad(dateTime.getMonth() + 1, 2) + '/' +
-                dateTime.getFullYear() + ' ' +
-                this.zeroPad(dateTime.getHours(), 2) + ':' +
-                this.zeroPad(dateTime.getMinutes(), 2) + ':' +
-                this.zeroPad(dateTime.getSeconds(), 2);
-        },
-
-        frequencyCounter: function(array) {
-            return array.reduce(function(acc, curr) {
-                if (typeof acc[curr] == 'undefined') acc[curr] = 1;
-                else acc[curr] += 1;
-                return acc;
-            }, {});
-        },
-
-        generateRandomCoordinates: function() {
-            const x = Math.floor(Math.random() * 1000);
-            const y = Math.floor(Math.random() * 1000);
-            return `${x}|${y}`;
-        },
-
-        getAll: function(urls, onLoad, onDone, onError) {
-            var numDone = 0;
-            var lastRequestTime = 0;
-            var minWaitTime = this.delayBetweenRequests;
-            loadNext();
-            function loadNext() {
-                if (numDone == urls.length) { onDone(); return; }
-                let now = Date.now();
-                let timeElapsed = now - lastRequestTime;
-                if (timeElapsed < minWaitTime) {
-                    let timeRemaining = minWaitTime - timeElapsed;
-                    setTimeout(loadNext, timeRemaining);
+                const remaining = cancelTime.getTime() - now2.getTime();
+                if (remaining <= 0) {
+                    clearInterval(timer);
+                    document.getElementById('cancelIn').textContent = '00:00:00';
                     return;
                 }
-                lastRequestTime = now;
-                jQuery.get(urls[numDone]).done((data) => {
-                    try {
-                        onLoad(numDone, data);
-                        ++numDone;
-                        loadNext();
-                    } catch (e) { onError(e); }
-                }).fail((xhr) => { onError(xhr); });
+
+                const secs = Math.floor(remaining / 1000);
+                const h = Math.floor(secs / 3600);
+                const m = Math.floor((secs % 3600) / 60);
+                const s = secs % 60;
+
+                document.getElementById('cancelIn').textContent =
+                    `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }, 1000);
+        };
+
+        // Make draggable
+        let isDragging = false;
+        let offsetX, offsetY;
+
+        popup.querySelector('h3').parentElement.onmousedown = function(e) {
+            isDragging = true;
+            offsetX = e.clientX - popup.offsetLeft;
+            offsetY = e.clientY - popup.offsetTop;
+        };
+
+        document.onmousemove = function(e) {
+            if (isDragging) {
+                popup.style.left = (e.clientX - offsetX) + 'px';
+                popup.style.top = (e.clientY - offsetY) + 'px';
+                popup.style.right = 'auto';
             }
-        },
+        };
 
-        getBuildingsInfo: async function() {
-            const TIME_INTERVAL = 60 * 60 * 1000 * 24 * 365;
-            const LAST_UPDATED_TIME = localStorage.getItem('buildings_info_last_updated') ?? 0;
-            let buildingsInfo = [];
-            if (LAST_UPDATED_TIME !== null) {
-                if (Date.parse(new Date()) >= LAST_UPDATED_TIME + TIME_INTERVAL) {
-                    const response = await jQuery.ajax({ url: this.buildingInfoInterface });
-                    buildingsInfo = this.xml2json(jQuery(response));
-                    localStorage.setItem('buildings_info', JSON.stringify(buildingsInfo));
-                    localStorage.setItem('buildings_info_last_updated', Date.parse(new Date()));
-                } else {
-                    buildingsInfo = JSON.parse(localStorage.getItem('buildings_info'));
-                }
-            } else {
-                const response = await jQuery.ajax({ url: this.buildingInfoInterface });
-                buildingsInfo = this.xml2json(jQuery(response));
-                localStorage.setItem('buildings_info', JSON.stringify(unitInfo));
-                localStorage.setItem('buildings_info_last_updated', Date.parse(new Date()));
-            }
-            return buildingsInfo;
-        },
+        document.onmouseup = function() {
+            isDragging = false;
+        };
+    }
 
-        getContinentByCoord: function(coord) {
-            let [x, y] = Array.from(coord.split('|')).map((e) => parseInt(e));
-            for (let i = 0; i < 1000; i += 100) {
-                for (let j = 0; j < 1000; j += 100) {
-                    if (i >= x && x < i + 100 && j >= y && y < j + 100) {
-                        let nr_continent = parseInt(y / 100) + '' + parseInt(x / 100);
-                        return nr_continent;
-                    }
-                }
-            }
-        },
-
-        getContinentsFromCoordinates: function(coordinates) {
-            let continents = [];
-            coordinates.forEach((coord) => {
-                const continent = twSDK.getContinentByCoord(coord);
-                continents.push(continent);
-            });
-            return [...new Set(continents)];
-        },
-
-        getCoordFromString: function(string) {
-            if (!string) return [];
-            return string.match(this.coordsRegex)[0];
-        },
-
-        getContinentSectorField: function(coordinate) {
-            const continent = this.getContinentByCoord(coordinate);
-            let [coordX, coordY] = coordinate.split('|');
-            let tempX = Number(coordX);
-            let tempY = Number(coordY);
-            if (tempX >= 100) tempX = Number(String(coordX).substring(1));
-            if (tempY >= 100) tempY = Number(String(coordY).substring(1));
-            let xPos = Math.floor(tempX / 5);
-            let yPos = Math.floor(tempY / 5);
-            let sector = yPos * 20 + xPos;
-            if (tempX >= 10) tempX = Number(String(tempX).substring(1));
-            if (tempY >= 10) tempY = Number(String(tempY).substring(1));
-            if (tempX >= 5) tempX = tempX - 5;
-            if (tempY >= 5) tempY = tempY - 5;
-            let field = tempY * 5 + tempX;
-            return continent + ':' + sector + ':' + field;
-        },
-
-        getDestinationCoordinates: function(config, tribes, players, villages) {
-            const { playersInput, tribesInput, continents, minCoord, maxCoord, distCenter, center, excludedPlayers, enable20To1Limit, minPoints, maxPoints, selectiveRandomConfig } = config;
-            const chosenPlayers = playersInput.split(',');
-            const chosenTribes = tribesInput.split(',');
-            const chosenPlayerIds = twSDK.getEntityIdsByArrayIndex(chosenPlayers, players, 1);
-            const chosenTribeIds = twSDK.getEntityIdsByArrayIndex(chosenTribes, tribes, 2);
-            const tribePlayers = twSDK.getTribeMembersById(chosenTribeIds, players);
-            let mergedPlayersList = [...tribePlayers, ...chosenPlayerIds];
-            let uniquePlayersList = [...new Set(mergedPlayersList)];
-            const chosenExcludedPlayers = excludedPlayers.split(',');
-            if (chosenExcludedPlayers.length > 0) {
-                const excludedPlayersIds = twSDK.getEntityIdsByArrayIndex(chosenExcludedPlayers, players, 1);
-                excludedPlayersIds.forEach((item) => {
-                    uniquePlayersList = uniquePlayersList.filter((player) => player !== item);
-                });
-            }
-            if (enable20To1Limit) {
-                let uniquePlayersListArray = [];
-                uniquePlayersList.forEach((playerId) => {
-                    players.forEach((player) => {
-                        if (parseInt(player[0]) === playerId) uniquePlayersListArray.push(player);
-                    });
-                });
-                const playersNotBiggerThen20Times = uniquePlayersListArray.filter((player) => {
-                    return parseInt(player[4]) <= parseInt(game_data.player.points) * 20;
-                });
-                uniquePlayersList = playersNotBiggerThen20Times.map((player) => parseInt(player[0]));
-            }
-            let coordinatesArray = twSDK.filterVillagesByPlayerIds(uniquePlayersList, villages);
-            if (minPoints || maxPoints) {
-                let filteredCoordinatesArray = [];
-                coordinatesArray.forEach((coordinate) => {
-                    villages.forEach((village) => {
-                        const villageCoordinate = village[2] + '|' + village[3];
-                        if (villageCoordinate === coordinate) filteredCoordinatesArray.push(village);
-                    });
-                });
-                filteredCoordinatesArray = filteredCoordinatesArray.filter((village) => {
-                    const villagePoints = parseInt(village[5]);
-                    const minPointsNumber = parseInt(minPoints) || 26;
-                    const maxPointsNumber = parseInt(maxPoints) || 12124;
-                    if (villagePoints > minPointsNumber && villagePoints < maxPointsNumber) return village;
-                });
-                coordinatesArray = filteredCoordinatesArray.map((village) => village[2] + '|' + village[3]);
-            }
-            if (continents.length) {
-                let chosenContinentsArray = continents.split(',').map((item) => item.trim());
-                const availableContinents = twSDK.getContinentsFromCoordinates(coordinatesArray);
-                const filteredVillagesByContinent = twSDK.getFilteredVillagesByContinent(coordinatesArray, availableContinents);
-                const isUserInputValid = chosenContinentsArray.every((item) => availableContinents.includes(item));
-                if (isUserInputValid) {
-                    coordinatesArray = chosenContinentsArray.map((continent) => {
-                        if (continent.length && $.isNumeric(continent)) {
-                            return [...filteredVillagesByContinent[continent]];
-                        } else return;
-                    }).flat();
-                } else return [];
-            }
-            if (minCoord.length && maxCoord.length) {
-                const raMinCoordCheck = minCoord.match(twSDK.coordsRegex);
-                const raMaxCoordCheck = maxCoord.match(twSDK.coordsRegex);
-                if (raMinCoordCheck !== null && raMaxCoordCheck !== null) {
-                    const [minX, minY] = raMinCoordCheck[0].split('|');
-                    const [maxX, maxY] = raMaxCoordCheck[0].split('|');
-                    coordinatesArray = [...coordinatesArray].filter((coordinate) => {
-                        const [x, y] = coordinate.split('|');
-                        return (minX <= x && x <= maxX && minY <= y && y <= maxY);
-                    });
-                } else return [];
-            }
-            if (distCenter.length && center.length) {
-                if (!$.isNumeric(distCenter)) distCenter = 0;
-                const raCenterCheck = center.match(twSDK.coordsRegex);
-                if (distCenter !== 0 && raCenterCheck !== null) {
-                    let coordinatesArrayWithDistance = [];
-                    coordinatesArray.forEach((coordinate) => {
-                        const distance = twSDK.calculateDistance(raCenterCheck[0], coordinate);
-                        coordinatesArrayWithDistance.push({ coord: coordinate, distance: distance });
-                    });
-                    coordinatesArrayWithDistance = coordinatesArrayWithDistance.filter((item) => {
-                        return parseFloat(item.distance) <= parseFloat(distCenter);
-                    });
-                    coordinatesArray = coordinatesArrayWithDistance.map((item) => item.coord);
-                } else return [];
-            }
-            if (selectiveRandomConfig) {
-                const selectiveRandomizer = selectiveRandomConfig.split(';');
-                const makeRepeated = (arr, repeats) => Array.from({ length: repeats }, () => arr).flat();
-                const multipliedCoordinatesArray = [];
-                selectiveRandomizer.forEach((item) => {
-                    const [playerName, distribution] = item.split(':');
-                    if (distribution > 1) {
-                        players.forEach((player) => {
-                            if (twSDK.cleanString(player[1]) === twSDK.cleanString(playerName)) {
-                                let playerVillages = twSDK.filterVillagesByPlayerIds([parseInt(player[0])], villages);
-                                const flattenedPlayerVillagesArray = makeRepeated(playerVillages, distribution);
-                                multipliedCoordinatesArray.push(flattenedPlayerVillagesArray);
-                            }
-                        });
-                    }
-                });
-                coordinatesArray.push(...multipliedCoordinatesArray.flat());
-            }
-            return coordinatesArray;
-        },
-
-        getEntityIdsByArrayIndex: function(chosenItems, items, index) {
-            const itemIds = [];
-            chosenItems.forEach((chosenItem) => {
-                items.forEach((item) => {
-                    if (twSDK.cleanString(item[index]) === twSDK.cleanString(chosenItem)) {
-                        itemIds.push(parseInt(item[0]));
-                    }
-                });
-            });
-            return itemIds;
-        },
-
-        getFilteredVillagesByContinent: function(playerVillagesCoords, continents) {
-            let coords = [...playerVillagesCoords];
-            let filteredVillagesByContinent = [];
-            coords.forEach((coord) => {
-                continents.forEach((continent) => {
-                    let currentVillageContinent = twSDK.getContinentByCoord(coord);
-                    if (currentVillageContinent === continent) {
-                        filteredVillagesByContinent.push({ continent: continent, coords: coord });
-                    }
-                });
-            });
-            return twSDK.groupArrayByProperty(filteredVillagesByContinent, 'continent', 'coords');
-        },
-
-        getGameFeatures: function() {
-            const { Premium, FarmAssistent, AccountManager } = game_data.features;
-            return { isPA: Premium.active, isLA: FarmAssistent.active, isAM: AccountManager.active };
-        },
-
-        getKeyByValue: function(object, value) {
-            return Object.keys(object).find((key) => object[key] === value);
-        },
-
-        getLandingTimeFromArrivesIn: function(arrivesIn) {
-            const currentServerTime = twSDK.getServerDateTimeObject();
-            const [hours, minutes, seconds] = arrivesIn.split(':');
-            const totalSeconds = +hours * 3600 + +minutes * 60 + +seconds;
-            return new Date(currentServerTime.getTime() + totalSeconds * 1000);
-        },
-
-        getLastCoordFromString: function(string) {
-            if (!string) return [];
-            const regex = this.coordsRegex;
-            let match, lastMatch;
-            while ((match = regex.exec(string)) !== null) lastMatch = match;
-            return lastMatch ? lastMatch[0] : [];
-        },
-
-        getPagesToFetch: function() {
-            let list_pages = [];
-            const currentPage = twSDK.getParameterByName('page');
-            if (currentPage == '-1') return [];
-            if (document.getElementsByClassName('vis')[1].getElementsByTagName('select').length > 0) {
-                Array.from(document.getElementsByClassName('vis')[1].getElementsByTagName('select')[0]).forEach(function(item) {
-                    list_pages.push(item.value);
-                });
-                list_pages.pop();
-            } else if (document.getElementsByClassName('paged-nav-item').length > 0) {
-                let nr = 0;
-                Array.from(document.getElementsByClassName('paged-nav-item')).forEach(function(item) {
-                    let current = item.href;
-                    current = current.split('page=')[0] + 'page=' + nr;
-                    nr++;
-                    list_pages.push(current);
-                });
-            } else {
-                list_pages.push(window.location.href);
-            }
-            list_pages.shift();
-            return list_pages;
-        },
-
-        getParameterByName: function(name, url = window.location.href) {
-            return new URL(url).searchParams.get(name);
-        },
-
-        getRelativeImagePath: function(url) {
-            const urlParts = url.split('/');
-            return `/${urlParts[5]}/${urlParts[6]}/${urlParts[7]}`;
-        },
-
-        getServerDateTimeObject: function() {
-            return new Date(this.getServerDateTime());
-        },
-
-        getServerDateTime: function() {
-            const serverTime = jQuery('#serverTime').text();
-            const serverDate = jQuery('#serverDate').text();
-            const [day, month, year] = serverDate.split('/');
-            return year + '-' + month + '-' + day + ' ' + serverTime;
-        },
-
-        getTimeFromString: function(timeLand) {
-            let dateLand = '';
-            let serverDate = document.getElementById('serverDate').innerText.split('/');
-
-            let TIME_PATTERNS = {
-                today: 'today at %s',
-                tomorrow: 'tomorrow at %s',
-                later: 'on %1 at %2',
-            };
-
-            if (window.lang) {
-                TIME_PATTERNS = {
-                    today: window.lang['aea2b0aa9ae1534226518faaefffdaad'],
-                    tomorrow: window.lang['57d28d1b211fddbb7a499ead5bf23079'],
-                    later: window.lang['0cb274c906d622fa8ce524bcfbb7552d'],
-                };
-            }
-
-            // Greek patterns
-            let todayPattern = new RegExp(TIME_PATTERNS.today.replace('%s', '([\\d+|:]+)') + '|σήμερα στις ([\\d+|:]+)').exec(timeLand);
-            let tomorrowPattern = new RegExp(TIME_PATTERNS.tomorrow.replace('%s', '([\\d+|:]+)') + '|αύριο στις ([\\d+|:]+)').exec(timeLand);
-            let laterDatePattern = new RegExp(TIME_PATTERNS.later.replace('%1', '([\\d+|\\.]+)').replace('%2', '([\\d+|:]+)') + '|στις ([\\d+\\.]+) ([\\d+|:]+)').exec(timeLand);
-
-            if (todayPattern !== null && (todayPattern[1] || todayPattern[2])) {
-                let timeMatch = timeLand.match(/\d+:\d+:\d+:\d+/) || timeLand.match(/\d+:\d+:\d+/);
-                let timeStr = timeMatch ? timeMatch[0] : '00:00:00';
-                dateLand = serverDate[0] + '/' + serverDate[1] + '/' + serverDate[2] + ' ' + timeStr;
-            } else if (tomorrowPattern !== null && (tomorrowPattern[1] || tomorrowPattern[2])) {
-                let tomorrowDate = new Date(serverDate[1] + '/' + serverDate[0] + '/' + serverDate[2]);
-                tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-                let timeMatch = timeLand.match(/\d+:\d+:\d+:\d+/) || timeLand.match(/\d+:\d+:\d+/);
-                let timeStr = timeMatch ? timeMatch[0] : '00:00:00';
-                dateLand = ('0' + tomorrowDate.getDate()).slice(-2) + '/' + ('0' + (tomorrowDate.getMonth() + 1)).slice(-2) + '/' + tomorrowDate.getFullYear() + ' ' + timeStr;
-            } else {
-                let dateMatch = timeLand.match(/\d+\.\d+/);
-                if (dateMatch) {
-                    let on = dateMatch[0].split('.');
-                    let timeMatch = timeLand.match(/\d+:\d+:\d+:\d+/) || timeLand.match(/\d+:\d+:\d+/);
-                    let timeStr = timeMatch ? timeMatch[0] : '00:00:00';
-                    dateLand = on[0] + '/' + on[1] + '/' + serverDate[2] + ' ' + timeStr;
-                } else {
-                    let timeMatch = timeLand.match(/\d+:\d+:\d+:\d+/) || timeLand.match(/\d+:\d+:\d+/);
-                    let timeStr = timeMatch ? timeMatch[0] : timeLand;
-                    dateLand = serverDate[0] + '/' + serverDate[1] + '/' + serverDate[2] + ' ' + timeStr;
-                }
-            }
-            return dateLand;
-        },
-
-        getTravelTimeInSecond: function(distance, unitSpeed) {
-            let travelTime = distance * unitSpeed * 60;
-            return (travelTime % 1 > 0.5) ? travelTime += 1 : travelTime;
-        },
-
-        getTribeMembersById: function(tribeIds, players) {
-            const tribeMemberIds = [];
-            players.forEach((player) => {
-                if (tribeIds.includes(parseInt(player[2]))) tribeMemberIds.push(parseInt(player[0]));
-            });
-            return tribeMemberIds;
-        },
-
-        getTroop: function(unit) {
-            return parseInt(document.units[unit].parentNode.getElementsByTagName('a')[1].innerHTML.match(/\d+/), 10);
-        },
-
-        getVillageBuildings: function() {
-            const buildings = game_data.village.buildings;
-            const villageBuildings = [];
-            for (let [key, value] of Object.entries(buildings)) {
-                if (value > 0) villageBuildings.push({ building: key, level: value });
-            }
-            return villageBuildings;
-        },
-
-        getWorldConfig: async function() {
-            const TIME_INTERVAL = 60 * 60 * 1000 * 24 * 7;
-            const LAST_UPDATED_TIME = localStorage.getItem('world_config_last_updated') ?? 0;
-            let worldConfig = [];
-            if (LAST_UPDATED_TIME !== null) {
-                if (Date.parse(new Date()) >= LAST_UPDATED_TIME + TIME_INTERVAL) {
-                    const response = await jQuery.ajax({ url: this.worldInfoInterface });
-                    worldConfig = this.xml2json(jQuery(response));
-                    localStorage.setItem('world_config', JSON.stringify(worldConfig));
-                    localStorage.setItem('world_config_last_updated', Date.parse(new Date()));
-                } else {
-                    worldConfig = JSON.parse(localStorage.getItem('world_config'));
-                }
-            } else {
-                const response = await jQuery.ajax({ url: this.worldInfoInterface });
-                worldConfig = this.xml2json(jQuery(response));
-                localStorage.setItem('world_config', JSON.stringify(unitInfo));
-                localStorage.setItem('world_config_last_updated', Date.parse(new Date()));
-            }
-            return worldConfig;
-        },
-
-        getWorldUnitInfo: async function() {
-            const TIME_INTERVAL = 60 * 60 * 1000 * 24 * 7;
-            const LAST_UPDATED_TIME = localStorage.getItem('units_info_last_updated') ?? 0;
-            let unitInfo = [];
-            if (LAST_UPDATED_TIME !== null) {
-                if (Date.parse(new Date()) >= LAST_UPDATED_TIME + TIME_INTERVAL) {
-                    const response = await jQuery.ajax({ url: this.unitInfoInterface });
-                    unitInfo = this.xml2json(jQuery(response));
-                    localStorage.setItem('units_info', JSON.stringify(unitInfo));
-                    localStorage.setItem('units_info_last_updated', Date.parse(new Date()));
-                } else {
-                    unitInfo = JSON.parse(localStorage.getItem('units_info'));
-                }
-            } else {
-                const response = await jQuery.ajax({ url: this.unitInfoInterface });
-                unitInfo = this.xml2json(jQuery(response));
-                localStorage.setItem('units_info', JSON.stringify(unitInfo));
-                localStorage.setItem('units_info_last_updated', Date.parse(new Date()));
-            }
-            return unitInfo;
-        },
-
-        groupArrayByProperty: function(array, property, filter) {
-            return array.reduce(function(accumulator, object) {
-                const key = object[property];
-                if (!accumulator[key]) accumulator[key] = [];
-                accumulator[key].push(object[filter]);
-                return accumulator;
-            }, {});
-        },
-
-        isArcherWorld: function() { return this.units.includes('archer'); },
-        isChurchWorld: function() { return 'church' in this.village.buildings; },
-        isPaladinWorld: function() { return this.units.includes('knight'); },
-        isWatchTowerWorld: function() { return 'watchtower' in this.village.buildings; },
-
-        loadJS: function(url, callback) {
-            let scriptTag = document.createElement('script');
-            scriptTag.src = url;
-            scriptTag.onload = callback;
-            scriptTag.onreadystatechange = callback;
-            document.body.appendChild(scriptTag);
-        },
-
-        redirectTo: function(location) { window.location.assign(game_data.link_base_pure + location); },
-
-        removeDuplicateObjectsFromArray: function(array, prop) {
-            return array.filter((obj, pos, arr) => {
-                return arr.map((mapObj) => mapObj[prop]).indexOf(obj[prop]) === pos;
-            });
-        },
-
-        renderBoxWidget: function(body, id, mainClass, customStyle) {
-            const globalStyle = this.addGlobalStyle();
-            const content = `<div class="${mainClass} ra-box-widget" id="${id}"><div class="${mainClass}-header"><h3>${this.tt(this.scriptData.name)}</h3></div><div class="${mainClass}-body">${body}</div><div class="${mainClass}-footer"><small><strong>${this.tt(this.scriptData.name)} ${this.scriptData.version}</strong> - <a href="${this.scriptData.authorUrl}" target="_blank" rel="noreferrer noopener">${this.scriptData.author}</a> - <a href="${this.scriptData.helpLink}" target="_blank" rel="noreferrer noopener">${this.tt('Help')}</a></small></div></div><style>.${mainClass} { position: relative; display: block; width: 100%; height: auto; clear: both; margin: 10px 0 15px; border: 1px solid #603000; box-sizing: border-box; background: #f4e4bc; } .${mainClass} * { box-sizing: border-box; } .${mainClass} > div { padding: 10px; } .${mainClass} .btn-confirm-yes { padding: 3px; } .${mainClass}-header { display: flex; align-items: center; justify-content: space-between; background-color: #c1a264 !important; background-image: url(/graphic/screen/tableheader_bg3.png); background-repeat: repeat-x; } .${mainClass}-header h3 { margin: 0; padding: 0; line-height: 1; } .${mainClass}-body p { font-size: 14px; } .${mainClass}-body label { display: block; font-weight: 600; margin-bottom: 6px; } ${globalStyle} ${customStyle}</style>`;
-            if (jQuery(`#${id}`).length < 1) {
-                jQuery('#contentContainer').prepend(content);
-                jQuery('#mobileContent').prepend(content);
-            } else jQuery(`.${mainClass}-body`).html(body);
-        },
-
-        renderFixedWidget: function(body, id, mainClass, customStyle, width, customName = this.scriptData.name) {
-            const globalStyle = this.addGlobalStyle();
-            const content = `<div class="${mainClass} ra-fixed-widget" id="${id}"><div class="${mainClass}-header"><h3>${this.tt(customName)}</h3></div><div class="${mainClass}-body">${body}</div><div class="${mainClass}-footer"><small><strong>${this.tt(customName)} ${this.scriptData.version}</strong> - <a href="${this.scriptData.authorUrl}" target="_blank" rel="noreferrer noopener">${this.scriptData.author}</a> - <a href="${this.scriptData.helpLink}" target="_blank" rel="noreferrer noopener">${this.tt('Help')}</a></small></div><a class="popup_box_close custom-close-button" href="#">&nbsp;</a></div><style>.${mainClass} { position: fixed; top: 10vw; right: 10vw; z-index: 99999; border: 2px solid #7d510f; border-radius: 10px; padding: 10px; width: ${width ?? '360px'}; overflow-y: auto; padding: 10px; background: #e3d5b3 url('/graphic/index/main_bg.jpg') scroll right top repeat; } .${mainClass} * { box-sizing: border-box; } ${globalStyle} .custom-close-button { right: 0; top: 0; } ${customStyle}</style>`;
-            if (jQuery(`#${id}`).length < 1) {
-                if (mobiledevice) jQuery('#content_value').prepend(content);
-                else {
-                    jQuery('#contentContainer').prepend(content);
-                    jQuery(`#${id}`).draggable({ cancel: '.ra-table, input, textarea, button, select, option' });
-                    jQuery(`#${id} .custom-close-button`).on('click', function(e) { e.preventDefault(); jQuery(`#${id}`).remove(); });
-                }
-            } else jQuery(`.${mainClass}-body`).html(body);
-        },
-
-        scriptInfo: function(scriptData = this.scriptData) { return `[${scriptData.name} ${scriptData.version}]`; },
-
-        secondsToHms: function(timestamp) {
-            const hours = Math.floor(timestamp / 60 / 60);
-            const minutes = Math.floor(timestamp / 60) - hours * 60;
-            const seconds = timestamp % 60;
-            return hours.toString().padStart(2, '0') + ':' + minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
-        },
-
-        setUpdateProgress: function(elementToUpdate, valueToSet) { jQuery(elementToUpdate).text(valueToSet); },
-
-        sortArrayOfObjectsByKey: function(array, key) { return array.sort((a, b) => b[key] - a[key]); },
-
-        startProgressBar: function(total) {
-            const width = jQuery('#content_value')[0].clientWidth;
-            const preloaderContent = `<div id="progressbar" class="progress-bar" style="margin-bottom:12px;"><span class="count label">0/${total}</span><div id="progress"><span class="count label" style="width: ${width}px;">0/${total}</span></div></div>`;
-            if (this.isMobile) jQuery('#content_value').eq(0).prepend(preloaderContent);
-            else jQuery('#contentContainer').eq(0).prepend(preloaderContent);
-        },
-
-        sumOfArrayItemValues: function(array) { return array.reduce((a, b) => a + b, 0); },
-
-        randomItemPickerString: function(items, splitter = ' ') {
-            const itemsArray = items.split(splitter);
-            return itemsArray[Math.floor(Math.random() * itemsArray.length)];
-        },
-
-        randomItemPickerArray: function(items) { return items[Math.floor(Math.random() * items.length)]; },
-
-        timeAgo: function(seconds) {
-            var interval = seconds / 31536000; if (interval > 1) return Math.floor(interval) + ' Y';
-            interval = seconds / 2592000; if (interval > 1) return Math.floor(interval) + ' M';
-            interval = seconds / 86400; if (interval > 1) return Math.floor(interval) + ' D';
-            interval = seconds / 3600; if (interval > 1) return Math.floor(interval) + ' H';
-            interval = seconds / 60; if (interval > 1) return Math.floor(interval) + ' m';
-            return Math.floor(seconds) + ' s';
-        },
-
-        tt: function(string) {
-            if (this.translations[game_data.locale] !== undefined) return this.translations[game_data.locale][string];
-            else return this.translations['en_DK'][string];
-        },
-
-        toggleUploadButtonStatus: function(elementToToggle) { jQuery(elementToToggle).attr('disabled', (i, v) => !v); },
-
-        updateProgress: function(elementToUpate, itemsLength, index) { jQuery(elementToUpate).text(`${index}/${itemsLength}`); },
-
-        updateProgressBar: function(index, total) {
-            jQuery('#progress').css('width', `${((index + 1) / total) * 100}%`);
-            jQuery('.count').text(`${index + 1}/${total}`);
-            if (index + 1 == total) jQuery('#progressbar').fadeOut(1000);
-        },
-
-        xml2json: function($xml) {
-            let data = {};
-            $.each($xml.children(), function(i) {
-                let $this = $(this);
-                if ($this.children().length > 0) data[$this.prop('tagName')] = twSDK.xml2json($this);
-                else data[$this.prop('tagName')] = $.trim($this.text());
-            });
-            return data;
-        },
-
-        worldDataAPI: async function(entity) {
-            const TIME_INTERVAL = 60 * 60 * 1000;
-            const LAST_UPDATED_TIME = localStorage.getItem(`${entity}_last_updated`);
-            const allowedEntities = ['village', 'player', 'ally', 'conquer'];
-            if (!allowedEntities.includes(entity)) throw new Error(`Entity ${entity} does not exist!`);
-            const worldData = {};
-            const dbConfig = {
-                village: { dbName: 'villagesDb', dbTable: 'villages', key: 'villageId', url: twSDK.worldDataVillages },
-                player: { dbName: 'playersDb', dbTable: 'players', key: 'playerId', url: twSDK.worldDataPlayers },
-                ally: { dbName: 'tribesDb', dbTable: 'tribes', key: 'tribeId', url: twSDK.worldDataTribes },
-                conquer: { dbName: 'conquerDb', dbTable: 'conquer', key: '', url: twSDK.worldDataConquests },
-            };
-            const fetchDataAndSave = async () => {
-                const DATA_URL = dbConfig[entity].url;
-                try {
-                    const response = await jQuery.ajax(DATA_URL);
-                    const data = twSDK.csvToArray(response);
-                    let responseData = [];
-                    switch (entity) {
-                        case 'village':
-                            responseData = data.filter((item) => item[0] != '').map((item) => ({ villageId: parseInt(item[0]), villageName: twSDK.cleanString(item[1]), villageX: item[2], villageY: item[3], playerId: parseInt(item[4]), villagePoints: parseInt(item[5]), villageType: parseInt(item[6]) }));
-                            break;
-                        case 'player':
-                            responseData = data.filter((item) => item[0] != '').map((item) => ({ playerId: parseInt(item[0]), playerName: twSDK.cleanString(item[1]), tribeId: parseInt(item[2]), villages: parseInt(item[3]), points: parseInt(item[4]), rank: parseInt(item[5]) }));
-                            break;
-                        case 'ally':
-                            responseData = data.filter((item) => item[0] != '').map((item) => ({ tribeId: parseInt(item[0]), tribeName: twSDK.cleanString(item[1]), tribeTag: twSDK.cleanString(item[2]), players: parseInt(item[3]), villages: parseInt(item[4]), points: parseInt(item[5]), allPoints: parseInt(item[6]), rank: parseInt(item[7]) }));
-                            break;
-                        case 'conquer':
-                            responseData = data.filter((item) => item[0] != '').map((item) => ({ villageId: parseInt(item[0]), unixTimestamp: parseInt(item[1]), newPlayerId: parseInt(item[2]), newPlayerId: parseInt(item[3]), oldTribeId: parseInt(item[4]), newTribeId: parseInt(item[5]), villagePoints: parseInt(item[6]) }));
-                            break;
-                    }
-                    saveToIndexedDbStorage(dbConfig[entity].dbName, dbConfig[entity].dbTable, dbConfig[entity].key, responseData);
-                    localStorage.setItem(`${entity}_last_updated`, Date.parse(new Date()));
-                    return responseData;
-                } catch (error) { throw Error(`Error fetching ${DATA_URL}`); }
-            };
-            async function saveToIndexedDbStorage(dbName, table, keyId, data) {
-                const dbConnect = indexedDB.open(dbName);
-                dbConnect.onupgradeneeded = function() {
-                    const db = dbConnect.result;
-                    if (keyId.length) db.createObjectStore(table, { keyPath: keyId });
-                    else db.createObjectStore(table, { autoIncrement: true });
-                };
-                dbConnect.onsuccess = function() {
-                    const db = dbConnect.result;
-                    const transaction = db.transaction(table, 'readwrite');
-                    const store = transaction.objectStore(table);
-                    store.clear();
-                    data.forEach((item) => store.put(item));
-                    UI.SuccessMessage('Database updated!');
-                };
-            }
-            function getAllData(dbName, table) {
-                return new Promise((resolve, reject) => {
-                    const dbConnect = indexedDB.open(dbName);
-                    dbConnect.onsuccess = () => {
-                        const db = dbConnect.result;
-                        const dbQuery = db.transaction(table, 'readwrite').objectStore(table).getAll();
-                        dbQuery.onsuccess = (event) => resolve(event.target.result);
-                        dbQuery.onerror = (event) => reject(event.target.error);
-                    };
-                    dbConnect.onerror = (event) => reject(event.target.error);
-                });
-            }
-            function objectToArray(arrayOfObjects, entity) {
-                switch (entity) {
-                    case 'village': return arrayOfObjects.map((item) => [item.villageId, item.villageName, item.villageX, item.villageY, item.playerId, item.villagePoints, item.villageType]);
-                    case 'player': return arrayOfObjects.map((item) => [item.playerId, item.playerName, item.tribeId, item.villages, item.points, item.rank]);
-                    case 'ally': return arrayOfObjects.map((item) => [item.tribeId, item.tribeName, item.tribeTag, item.players, item.villages, item.points, item.allPoints, item.rank]);
-                    case 'conquer': return arrayOfObjects.map((item) => [item.villageId, item.unixTimestamp, item.newPlayerId, item.newPlayerId, item.oldTribeId, item.newTribeId, item.villagePoints]);
-                    default: return [];
-                }
-            }
-            if (LAST_UPDATED_TIME !== null) {
-                if (Date.parse(new Date()) >= parseInt(LAST_UPDATED_TIME) + TIME_INTERVAL) worldData[entity] = await fetchDataAndSave();
-                else worldData[entity] = await getAllData(dbConfig[entity].dbName, dbConfig[entity].dbTable);
-            } else worldData[entity] = await fetchDataAndSave();
-            worldData[entity] = objectToArray(worldData[entity], entity);
-            return worldData[entity];
-        },
-
-        zeroPad: function(num, count) {
-            var numZeropad = num + '';
-            while (numZeropad.length < count) numZeropad = '0' + numZeropad;
-            return numZeropad;
-        },
-
-        init: async function(scriptConfig) {
-            const { scriptData, translations, allowedMarkets, allowedScreens, allowedModes, isDebug, enableCountApi } = scriptConfig;
-            this.scriptData = scriptData;
-            this.translations = translations;
-            this.allowedMarkets = allowedMarkets;
-            this.allowedScreens = allowedScreens;
-            this.allowedModes = allowedModes;
-            this.enableCountApi = enableCountApi;
-            this.isDebug = isDebug;
-            twSDK._initDebug();
-        },
-    };
-
-    // Main execution
-    (async function() {
-        await twSDK.init(scriptConfig);
-        const scriptInfo = twSDK.scriptInfo();
-        const isValidScreen = twSDK.checkValidLocation('screen');
-
-        if (isValidScreen) {
-            try {
-                buildUI();
-                handleCalculateSnipe();
-                fixTimerUpdate();
-            } catch (error) {
-                UI.ErrorMessage(twSDK.tt('There was an error!'));
-                console.error(`${scriptInfo} Error:`, error);
-            }
-        } else {
-            UI.ErrorMessage(twSDK.tt('Go to Command then run script!'));
-        }
-
-        function buildUI() {
-            const landingTime = localStorage.getItem(`${scriptConfig.scriptData.prefix}_landing_time`) || '';
-            const content = `<div class="ra-mb15"><label class="ra-label" for="raLandingTime">${twSDK.tt('Enter landing time:')}</label><input class="ra-input" id="raLandingTime" type="text" value="${landingTime}" placeholder="π.χ. σήμερα στις 16:00:00 ή 16:00:00"></div><div style="display:none;" id="raSnipeTime"><div class="ra-mb15 ra-cancel-in-time"><b>${twSDK.tt('Server Time:')}</b> <span id="raServerTime" class="ra-server-time"></span><br><b>${twSDK.tt('Cancel Time:')}</b> <span id="raSnipeTimeInput" class="ra-cancel-snipe-time"></span><br><b>${twSDK.tt('Cancel In:')}</b> <span id="raSnipeCancelIn" class="timer ra-cancel-snipe-cancel-time"></span></div></div><div class="ra-mb15"><a href="javascript:void(0);" id="raCalculateCancelSnipeBtn" class="btn">${twSDK.tt('Calculate Cancel Snipe')}</a></div>`;
-            const customStyle = `.ra-label { display: block; margin-bottom: 5px; font-weight: bold; } .ra-input { width: 100%; height: auto; padding: 8px; font-size: 14px; } .ra-cancel-in-time { font-size: 16px; font-weight: 600; } .ra-cancel-snipe-time { color: #3236a8; } .ra-cancel-snipe-cancel-time { color: #ff0000; } .ra-cancel-snipe-helper .btn-confirm-yes { padding: 3px; }`;
-
-            jQuery(window.TribalWars).on('global_tick', function() {
-                const serverDateTime = Timing.getCurrentServerTime();
-                jQuery('#raServerTime').text(getFormattedCancelTime(serverDateTime));
-                Timing.tickHandlers.timers.init();
-                updateCancelTimer();
-            });
-
-            setTimeout(function() {
-                jQuery('#raLandingTime').focus();
-                if (landingTime.length) jQuery('#raCalculateCancelSnipeBtn').trigger('click');
-            }, 10);
-
-            twSDK.renderFixedWidget(content, 'raCancelSnipeHelper', 'ra-cancel-snipe-helper', customStyle);
-        }
-
-        function handleCalculateSnipe() {
-            jQuery('#raCalculateCancelSnipeBtn').on('click', function(e) {
-                e.preventDefault();
-                const noblesLandingTime = jQuery('#raLandingTime').val().trim();
-                if (!noblesLandingTime) {
-                    UI.ErrorMessage(twSDK.tt('This field is required!'));
-                    return;
-                }
-                localStorage.setItem(`${scriptConfig.scriptData.prefix}_landing_time`, noblesLandingTime);
-                jQuery(this).addClass('btn-confirm-yes');
-                jQuery('#raLandingTime').val(noblesLandingTime);
-
-                const parsedLandingTime = twSDK.getTimeFromString(noblesLandingTime);
-                const noblesLandingTimeObject = new Date(parsedLandingTime).getTime();
-                const arrivalTime = getArrivalTimeDifference();
-                const difference = (parseInt(noblesLandingTimeObject) - parseInt(arrivalTime)) / 2;
-                const cancelTimeObject = new Date(noblesLandingTimeObject - difference);
-                const formattedCancelTime = getFormattedCancelTime(cancelTimeObject);
-                const serverTimeObject = twSDK.getServerDateTimeObject();
-                const cancelIn = cancelTimeObject.getTime() - serverTimeObject.getTime();
-
-                if (cancelIn > 0) {
-                    let formattedCancelIn = twSDK.secondsToHms(cancelIn / 1000);
-                    jQuery('#raSnipeTime').show();
-                    jQuery('#raSnipeTimeInput').text(formattedCancelTime);
-                    jQuery('#raSnipeCancelIn').text(formattedCancelIn);
-                    localStorage.setItem('ra_cancel_time', cancelTimeObject.getTime());
-                    Timing.tickHandlers.timers.init();
-                } else {
-                    UI.ErrorMessage(twSDK.tt('Cancel snipe is not possible!'));
-                }
-            });
-        }
-
-        function getArrivalTimeDifference() {
-            let cats = 5;
-            let table = document.getElementsByClassName('vis');
-            if (!table || table.length === 0) return 0;
-            let duration1 = table[0].rows[cats].cells[1];
-            let duration2 = duration1.innerHTML.split('<')[0];
-            let duration = duration2.split(':')[0] * 3600000 + duration2.split(':')[1] * 60000 + duration2.split(':')[2] * 1000;
-            if (isNaN(duration)) {
-                cats = 6;
-                duration1 = table[0].rows[cats].cells[1];
-                duration2 = duration1.innerHTML.split('<')[0];
-                duration = duration2.split(':')[0] * 3600000 + duration2.split(':')[1] * 60000 + duration2.split(':')[2] * 1000;
-            }
-            let arrival = table[0].rows[cats + 1].cells[1].innerHTML.split('"')[0].split('<')[0];
-            let arrivalTimeObject = new Date(arrival).getTime();
-            return arrivalTimeObject - duration;
-        }
-
-        function getFormattedCancelTime(cancelTime) {
-            const time = new Date(cancelTime).toString();
-            const [_, month, date, year, hour] = time.split(' ');
-            return `${month} ${date}, ${year} ${hour}`;
-        }
-
-        function fixTimerUpdate() {
-            if (window.Timing && Timing.tickHandlers && Timing.tickHandlers.timers) {
-                const originalHandler = Timing.tickHandlers.timers;
-                Timing.tickHandlers.timers = function() {
-                    originalHandler();
-                    updateCancelTimer();
-                };
-            }
-        }
-
-        function updateCancelTimer() {
-            const cancelTime = localStorage.getItem('ra_cancel_time');
-            if (cancelTime) {
-                const serverTimeObject = twSDK.getServerDateTimeObject();
-                const cancelIn = parseInt(cancelTime) - serverTimeObject.getTime();
-                if (cancelIn > 0) jQuery('#raSnipeCancelIn').text(twSDK.secondsToHms(cancelIn / 1000));
-                else jQuery('#raSnipeCancelIn').text('00:00:00');
-            }
-        }
-    })();
 })();
