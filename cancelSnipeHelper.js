@@ -114,54 +114,81 @@
         const serverDate = serverDateEl.textContent.trim();
         const [day, month, year] = serverDate.split('/');
 
-        console.log('Server date:', serverDate, 'Time:', serverTimeEl.textContent);
+        console.log('Server date:', serverDate, 'Day:', day, 'Month:', month, 'Year:', year);
 
-        // Handle different date formats
-        let fullDateStr = dateTimeStr;
+        let fullDateStr = '';
+        let timePart = '';
+
+        // Extract time part (HH:MM:SS or HH:MM:SS:mmm)
+        const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
+        if (timeMatch) {
+            timePart = timeMatch[1];
+        } else {
+            timePart = '00:00:00';
+        }
+
+        console.log('Time part:', timePart);
 
         // Check if it contains Greek words
         if (dateTimeStr.includes('σήμερα') || dateTimeStr.toLowerCase().includes('today')) {
             // Today at XX:XX:XX
-            const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
-            if (timeMatch) {
-                fullDateStr = `${year}-${month}-${day} ${timeMatch[1]}`;
-            }
+            // Format: YYYY-MM-DDTHH:MM:SS
+            fullDateStr = `${year}-${month}-${day}T${timePart}`;
         }
         else if (dateTimeStr.includes('αύριο') || dateTimeStr.toLowerCase().includes('tomorrow')) {
             // Tomorrow at XX:XX:XX
             const tomorrow = new Date(year, month-1, parseInt(day) + 1);
-            const tomorrowDay = tomorrow.getDate().toString().padStart(2, '0');
-            const tomorrowMonth = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
             const tomorrowYear = tomorrow.getFullYear();
+            const tomorrowMonth = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
+            const tomorrowDay = tomorrow.getDate().toString().padStart(2, '0');
 
-            const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
-            if (timeMatch) {
-                fullDateStr = `${tomorrowYear}-${tomorrowMonth}-${tomorrowDay} ${timeMatch[1]}`;
-            }
+            fullDateStr = `${tomorrowYear}-${tomorrowMonth}-${tomorrowDay}T${timePart}`;
         }
         else {
-            // Try to parse as is
-            const dateMatch = dateTimeStr.match(/(\d{1,2})[\/\.](\d{1,2})/);
-            const timeMatch = dateTimeStr.match(/(\d{1,2}:\d{2}:\d{2}(?::\d{3})?)/);
+            // Try to parse as is - check for date part
+            const dateMatch = dateTimeStr.match(/(\d{1,2})[\/\.](\d{1,2})(?:[\/\.](\d{2,4}))?/);
 
-            if (dateMatch && timeMatch) {
-                // Has date and time
-                fullDateStr = `${year}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')} ${timeMatch[1]}`;
-            } else if (timeMatch) {
+            if (dateMatch) {
+                // Has date in format DD/MM or DD/MM/YYYY
+                let inputDay = dateMatch[1].padStart(2, '0');
+                let inputMonth = dateMatch[2].padStart(2, '0');
+                let inputYear = dateMatch[3] || year;
+
+                if (inputYear.length === 2) {
+                    inputYear = '20' + inputYear; // Assume 20xx for 2-digit years
+                }
+
+                fullDateStr = `${inputYear}-${inputMonth}-${inputDay}T${timePart}`;
+            } else {
                 // Only time - assume today
-                fullDateStr = `${year}-${month}-${day} ${timeMatch[1]}`;
+                fullDateStr = `${year}-${month}-${day}T${timePart}`;
             }
         }
 
-        console.log('Parsed date string:', fullDateStr);
+        console.log('Final date string for parsing:', fullDateStr);
 
         // Parse to Date object
-        const date = new Date(fullDateStr.replace(' ', 'T').replace(/:/g, (match, offset, str) => {
-            // Handle milliseconds properly
-            return offset === str.length - 3 ? '.' : ':';
-        }));
+        const date = new Date(fullDateStr);
 
-        console.log('Parsed Date object:', date.toString());
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            console.log('❌ Failed to parse date:', fullDateStr);
+
+            // Try alternative format (for milliseconds)
+            if (timePart.includes(':')) {
+                const parts = timePart.split(':');
+                if (parts.length === 4) {
+                    // Handle milliseconds separately
+                    const dateWithoutMs = new Date(fullDateStr.split('T')[0] + 'T' + parts.slice(0,3).join(':'));
+                    dateWithoutMs.setMilliseconds(parseInt(parts[3]));
+                    console.log('Alternative parse with ms:', dateWithoutMs.toString());
+                    return dateWithoutMs;
+                }
+            }
+            return null;
+        }
+
+        console.log('✅ Successfully parsed date:', date.toString());
         return date;
     }
 
