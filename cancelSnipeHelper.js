@@ -82,14 +82,25 @@
                 duration = value;
                 console.log('✅ Found duration:', duration);
             }
-            if (label.includes('άφιξη') || label.includes('arrival')) {
+
+            // ΠΡΟΣΟΧΗ: Θέλουμε την πραγματική ώρα άφιξης, όχι το αντίστροφο μέτρημα
+            if ((label.includes('άφιξη:') || label === 'άφιξη:') && !label.includes('άφιξη σε:')) {
+                // Αυτή είναι η σωστή γραμμή με την πραγματική ώρα άφιξης
                 arrival = value;
-                console.log('✅ Found arrival:', arrival);
+                console.log('✅ Found arrival time:', arrival);
             }
+
+            // Αν βρήκαμε ήδη και τα δύο, σταματάμε
+            if (duration && arrival) break;
         }
 
-        if (!duration || !arrival) {
-            console.log('❌ Could not find duration or arrival');
+        if (!duration) {
+            console.log('❌ Could not find duration');
+            return null;
+        }
+
+        if (!arrival) {
+            console.log('❌ Could not find arrival time');
             return null;
         }
 
@@ -296,7 +307,7 @@
         </div>
 
         <div style="margin-bottom: 15px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Ώρα άφιξης ευγενή:</label>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Ώρα άφιξης επίθεσης:</label>
             <input type="text" id="nobleTime" style="width: 100%; padding: 8px; border: 1px solid #7d510f; border-radius: 4px;" 
                 placeholder="π.χ. σήμερα στις 16:00:00 ή 16:00:00">
         </div>
