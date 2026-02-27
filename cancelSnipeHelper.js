@@ -10,7 +10,7 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     console.log('🚀 Cancel Snipe Helper starting...');
@@ -104,7 +104,28 @@
             return null;
         }
 
-        return { duration, arrival };
+        return {duration, arrival};
+    }
+
+    // Πρόσθετη συνάρτηση για να κρατάει τα milliseconds
+    function calculateCancelTimeWithMS(nobleDate, departureDate, yourCommandMs) {
+        // Υπολογισμός κανονικής ώρας
+        const cancelTime = new Date((nobleDate.getTime() + departureDate.getTime()) / 2);
+
+        // Κράτα τα milliseconds από τη δική σου εντολή
+        cancelTime.setMilliseconds(yourCommandMs);
+
+        // Έλεγχος even/odd
+        const nobleMs = nobleDate.getMilliseconds();
+        const cancelMs = cancelTime.getMilliseconds();
+
+        // Αν διαφέρουν even/odd, διόρθωσε
+        if ((nobleMs % 2) !== (cancelMs % 2)) {
+            // Πρόσθεσε ή αφαίρεσε 1ms για να συμφωνήσουν
+            cancelTime.setMilliseconds(cancelMs + 1);
+        }
+
+        return cancelTime;
     }
 
     function parseGreekDateTime(dateTimeStr) {
@@ -177,19 +198,16 @@
 
                 fullDateStr = `${yearNum}-${monthNum}-${dayNum}T${timePart}`;
             }
-        }
-        else if (dateTimeStr.includes('σήμερα') || dateTimeStr.toLowerCase().includes('today')) {
+        } else if (dateTimeStr.includes('σήμερα') || dateTimeStr.toLowerCase().includes('today')) {
             fullDateStr = `${year}-${month}-${day}T${timePart}`;
-        }
-        else if (dateTimeStr.includes('αύριο') || dateTimeStr.toLowerCase().includes('tomorrow')) {
-            const tomorrow = new Date(year, month-1, parseInt(day) + 1);
+        } else if (dateTimeStr.includes('αύριο') || dateTimeStr.toLowerCase().includes('tomorrow')) {
+            const tomorrow = new Date(year, month - 1, parseInt(day) + 1);
             const tomorrowYear = tomorrow.getFullYear();
             const tomorrowMonth = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
             const tomorrowDay = tomorrow.getDate().toString().padStart(2, '0');
 
             fullDateStr = `${tomorrowYear}-${tomorrowMonth}-${tomorrowDay}T${timePart}`;
-        }
-        else {
+        } else {
             // Try to parse as is - check for date part
             const dateMatch = dateTimeStr.match(/(\d{1,2})[\/\.](\d{1,2})(?:[\/\.](\d{2,4}))?/);
 
@@ -271,7 +289,7 @@
         const [day, month, year] = serverDateEl.textContent.trim().split('/');
         const timeMatch = serverTimeEl.textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
 
-        const currentServerTime = new Date(year, month-1, day,
+        const currentServerTime = new Date(year, month - 1, day,
             parseInt(timeMatch[1]), parseInt(timeMatch[2]), parseInt(timeMatch[3]));
 
         console.log('Current server time:', currentServerTime.toString());
@@ -330,12 +348,12 @@
         document.body.appendChild(popup);
 
         // Close button
-        document.getElementById('closePopup').onclick = function() {
+        document.getElementById('closePopup').onclick = function () {
             popup.remove();
         };
 
         // Calculate button
-        document.getElementById('calculateBtn').onclick = function() {
+        document.getElementById('calculateBtn').onclick = function () {
             const nobleTimeStr = document.getElementById('nobleTime').value.trim();
             if (!nobleTimeStr) {
                 alert('Παρακαλώ βάλε ώρα άφιξης του ευγενή');
@@ -350,8 +368,13 @@
 
             console.log('Noble arrival:', nobleDate.toString());
 
-            // ΣΩΣΤΗ φόρμουλα: (noble arrival + support departure) / 2
-            const cancelTime = new Date((nobleDate.getTime() + departureTime.getTime()) / 2);
+            /*// ΣΩΣΤΗ φόρμουλα: (noble arrival + support departure) / 2
+            const cancelTime = new Date((nobleDate.getTime() + departureTime.getTime()) / 2);*/
+            // Βρες τα ms της δικής σου εντολής από το arrival
+            const yourCommandMs = arrivalDate.getMilliseconds();
+
+            // Υπολόγισε με τα σωστά ms
+            const cancelTime = calculateCancelTimeWithMS(nobleDate, departureTime, yourCommandMs);
             console.log('Cancel time:', cancelTime.toString());
 
             // Compare with current server time
@@ -360,7 +383,7 @@
             const [sDay, sMonth, sYear] = serverDateEl.textContent.trim().split('/');
             const sTimeMatch = serverTimeEl.textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
 
-            const now = new Date(sYear, sMonth-1, sDay,
+            const now = new Date(sYear, sMonth - 1, sDay,
                 parseInt(sTimeMatch[1]), parseInt(sTimeMatch[2]), parseInt(sTimeMatch[3]));
 
             const msUntilCancel = cancelTime.getTime() - now.getTime();
@@ -383,13 +406,13 @@
                 `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
             // Start countdown
-            const timer = setInterval(function() {
+            const timer = setInterval(function () {
                 const serverDateEl2 = document.getElementById('serverDate');
                 const serverTimeEl2 = document.getElementById('serverTime');
                 const [sDay2, sMonth2, sYear2] = serverDateEl2.textContent.trim().split('/');
                 const sTimeMatch2 = serverTimeEl2.textContent.match(/(\d{2}):(\d{2}):(\d{2})/);
 
-                const now2 = new Date(sYear2, sMonth2-1, sDay2,
+                const now2 = new Date(sYear2, sMonth2 - 1, sDay2,
                     parseInt(sTimeMatch2[1]), parseInt(sTimeMatch2[2]), parseInt(sTimeMatch2[3]));
 
                 const remaining = cancelTime.getTime() - now2.getTime();
@@ -415,13 +438,13 @@
         let isDragging = false;
         let offsetX, offsetY;
 
-        popup.querySelector('h3').parentElement.onmousedown = function(e) {
+        popup.querySelector('h3').parentElement.onmousedown = function (e) {
             isDragging = true;
             offsetX = e.clientX - popup.offsetLeft;
             offsetY = e.clientY - popup.offsetTop;
         };
 
-        document.onmousemove = function(e) {
+        document.onmousemove = function (e) {
             if (isDragging) {
                 popup.style.left = (e.clientX - offsetX) + 'px';
                 popup.style.top = (e.clientY - offsetY) + 'px';
@@ -429,7 +452,7 @@
             }
         };
 
-        document.onmouseup = function() {
+        document.onmouseup = function () {
             isDragging = false;
         };
     }
