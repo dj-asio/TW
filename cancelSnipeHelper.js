@@ -356,7 +356,7 @@
         document.getElementById('calculateBtn').onclick = function () {
             const nobleTimeStr = document.getElementById('nobleTime').value.trim();
             if (!nobleTimeStr) {
-                alert('Παρακαλώ βάλε ώρα άφιξης του ευγενή');
+                alert('Παρακαλώ βάλε ώρα άφιξης');
                 return;
             }
 
