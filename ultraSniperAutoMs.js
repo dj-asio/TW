@@ -1,8 +1,7 @@
 // UltraSniper.js - Fyletikes Maxes Ultra-Precision Sniper
-// Version: 4.1 (Performance.now() Engine)
+// Version: 4.1 (Performance.now() Engine) - HIDDEN CALIBRATION
 // Author: dj-asio
 // Loader: javascript:$.getScript("https://cdn.jsdelivr.net/gh/dj-asio/TW@main/ultraSniperAutoMs.js");
-// Loader: javascript:$.getScript("/home/tasos/WebstormProjects/TW/ultraSniperAutoMs.js");
 
 (function() {
     'use strict';
@@ -14,7 +13,24 @@
     }
     window.ultraSniperActive = true;
 
-    console.log('🎯 UltraSniper v4.1 (Performance.now() Engine) loading...');
+    console.log('🎯 UltraSniper v4.1 (Hidden Calibration) loading...');
+
+    // ==================== MILLISECONDS FORMATTING FUNCTIONS ====================
+    function formatMilliseconds(input) {
+        // Remove any non-digit characters and limit to 3 digits
+        input.value = input.value.replace(/[^0-9]/g, '').slice(0, 3);
+    }
+
+    function ensureThreeDigits(input) {
+        if (input.value.length === 0) {
+            input.value = '000';
+        } else if (input.value.length === 1) {
+            input.value = '00' + input.value;  // 5 → 005
+        } else if (input.value.length === 2) {
+            input.value = '0' + input.value;   // 59 → 059
+        }
+        // If already 3 digits, leave as is
+    }
 
     // ==================== ADVANCED TIMING ENGINE ====================
     class TimingEngine {
@@ -289,7 +305,8 @@
             </div>
         </div>
 
-        <div style="margin-bottom: 15px;">
+        <!-- TIMING STRATEGY - HIDDEN -->
+        <div style="margin-bottom: 15px; display: none;">
             <div style="color: #aaa; margin-bottom: 5px; font-size: 12px;">⚙️ TIMING STRATEGY:</div>
             <select id="strategy-select" style="width:100%; padding:10px; background:#333; color:white; border:1px solid #00ff00; border-radius:6px;">
                 <option value="hybrid" selected>🔄 Hybrid (Balanced - Recommended)</option>
@@ -307,9 +324,11 @@
                            style="width:100%; padding:8px; background:#333; color:#fff; border:1px solid #00ff00; border-radius:4px; font-family: monospace;">
                 </div>
                 <div style="flex:1;">
-                    <div style="color: #aaa; font-size: 11px; margin-bottom: 3px;">⚡ MS</div>
-                    <input type="number" id="target-ms" value="" placeholder="0" min="0" max="999" 
-                           style="width:100%; padding:8px; background:#333; color:#00ff00; border:1px solid #00ff00; border-radius:4px; font-family: monospace; font-weight: bold;">
+                    <div style="color: #aaa; font-size: 11px; margin-bottom: 3px;">⚡ Target MS</div>
+                    <input type="text" id="target-ms" value="" placeholder="000" 
+                           style="width:100%; padding:8px; background:#333; color:#00ff00; border:1px solid #00ff00; border-radius:4px; font-family: monospace; font-weight: bold; text-align: center;"
+                           oninput="formatMilliseconds(this)"
+                           onblur="ensureThreeDigits(this)">
                 </div>
             </div>
             <div style="color: #ffd700; font-size: 11px; text-align: center; padding: 5px; background: #333; border-radius: 4px;">
@@ -317,7 +336,8 @@
             </div>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <!-- CALIBRATION BUTTONS - HIDDEN -->
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; display: none;">
             <button id="quick-cal-btn" style="flex:1; background:#2196F3; color:white; border:none; padding:12px; border-radius:6px; cursor:pointer; font-weight:bold;">
                 ⚡ QUICK CAL
             </button>
@@ -326,7 +346,8 @@
             </button>
         </div>
 
-        <div id="calibration-stats" style="background: #222; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px; line-height: 1.6;">
+        <!-- CALIBRATION STATS - HIDDEN -->
+        <div id="calibration-stats" style="background: #222; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px; line-height: 1.6; display: none;">
             <div style="color: #aaa; margin-bottom: 5px;">📊 CALIBRATION STATS:</div>
             <div style="color: #ffd700;">Not calibrated yet</div>
         </div>
@@ -393,16 +414,15 @@
         });
     });
 
-    // Strategy selector
+    // Strategy selector - still functional but hidden
     document.getElementById('strategy-select').addEventListener('change', (e) => {
         engine.currentStrategy = e.target.value;
-        updateStatus(`Strategy: ${engine.strategies[engine.currentStrategy]}`);
+        // Status update disabled to keep UI clean
     });
 
-    // Quick calibration
+    // Quick calibration - still functional but hidden
     document.getElementById('quick-cal-btn').addEventListener('click', async () => {
         const statusDiv = document.getElementById('status').querySelector('div:last-child');
-        const calStats = document.getElementById('calibration-stats').querySelector('div:last-child');
 
         statusDiv.innerHTML = '⚡ Quick calibrating...';
         statusDiv.style.color = '#FFA500';
@@ -411,30 +431,20 @@
             statusDiv.innerHTML = `⚡ Calibrating: ${progress}%`;
         });
 
-        const comp = engine.getCompensation();
-        calStats.innerHTML = `⚡ Quick Cal: ${engine.avgLatency.toFixed(2)}ms avg<br>🔄 Compensation: ${comp.toFixed(2)}ms`;
-
         statusDiv.innerHTML = '✓ Calibrated';
         statusDiv.style.color = '#00ff00';
     });
 
-    // Deep calibration
+    // Deep calibration - still functional but hidden
     document.getElementById('deep-cal-btn').addEventListener('click', async () => {
         const statusDiv = document.getElementById('status').querySelector('div:last-child');
-        const calStats = document.getElementById('calibration-stats').querySelector('div:last-child');
 
         statusDiv.innerHTML = '🔬 Deep calibrating (30s)...';
         statusDiv.style.color = '#FFA500';
 
-        const stats = await engine.deepCalibrate((progress) => {
+        await engine.deepCalibrate((progress) => {
             statusDiv.innerHTML = `🔬 Deep Cal: ${progress}%`;
         });
-
-        const comp = engine.getCompensation();
-        calStats.innerHTML = `📊 STATISTICAL ANALYSIS:<br>` +
-            `Avg: ${stats.avg.toFixed(2)}ms | P50: ${stats.p50.toFixed(2)}ms<br>` +
-            `P10: ${stats.p10.toFixed(2)}ms | P90: ${stats.p90.toFixed(2)}ms<br>` +
-            `🔄 Recommended comp: ${comp.toFixed(2)}ms`;
 
         statusDiv.innerHTML = '✓ Deep calibrated';
         statusDiv.style.color = '#00ff00';
@@ -443,9 +453,13 @@
     // Arm sniper
     document.getElementById('arm-btn').addEventListener('click', () => {
         const timeStr = document.getElementById('target-time').value;
-        const targetMs = parseInt(document.getElementById('target-ms').value);
+        let targetMsField = document.getElementById('target-ms');
 
-        if (!timeStr || timeStr === '' || isNaN(targetMs) || targetMs === '') {
+        // Ensure milliseconds are properly formatted
+        ensureThreeDigits(targetMsField);
+        let targetMs = parseInt(targetMsField.value);
+
+        if (!timeStr || timeStr === '' || isNaN(targetMs)) {
             alert('❌ Please enter target time and milliseconds!\n\nExample:\nTime: 14:30:15\nMS: 259');
             return;
         }
@@ -466,7 +480,7 @@
         }
 
         if (targetMs < 0 || targetMs > 999) {
-            alert('❌ Milliseconds must be between 0 and 999');
+            alert('❌ Milliseconds must be between 000 and 999');
             return;
         }
 
@@ -490,7 +504,7 @@
         }
 
         armed = true;
-        updateStatus(`🎯 ARMED for ${timeStr}.${targetMs} (${compensation.toFixed(1)}ms comp)`, '#ff4444');
+        updateStatus(`🎯 ARMED for ${timeStr}.${targetMsField.value} (${compensation.toFixed(1)}ms comp)`, '#ff4444');
 
         if (countdownInterval) clearInterval(countdownInterval);
         if (microInterval) clearInterval(microInterval);
@@ -540,7 +554,8 @@
         const executionPerf = performance.now();
         const executionDate = new Date(engine.performanceToDate(executionPerf));
         const actualMs = executionDate.getMilliseconds();
-        const targetMs = parseInt(document.getElementById('target-ms').value);
+        const targetMsField = document.getElementById('target-ms');
+        const targetMs = parseInt(targetMsField.value);
         const deviation = actualMs - targetMs;
         const microDeviation = (executionPerf - engine.dateToPerformance(snipeTime.getTime()));
 
@@ -589,8 +604,8 @@
                 button.style.boxShadow = '';
             }, 1000);
 
-            const message = `${attackType === 'support' ? '🛡️ SNIPE' : '👑 ATTACK'}  SUCCESS!\n` +
-                `Target: ${targetMs}ms | Actual: ${actualMs}ms\n` +
+            const message = `${attackType === 'support' ? '🛡️ SNIPE' : '👑 ATTACK'} SUCCESS!\n` +
+                `Target: ${targetMsField.value}ms | Actual: ${actualMs.toString().padStart(3, '0')}ms\n` +
                 `Deviation: ${deviation > 0 ? '+' : ''}${deviation}ms\n` +
                 `Micro deviation: ${microDeviation > 0 ? '+' : ''}${microDeviation.toFixed(3)}ms\n` +
                 `Strategy: ${engine.strategies[engine.currentStrategy]}\n` +
@@ -612,7 +627,10 @@
             return;
         }
 
-        const targetMs = parseInt(document.getElementById('target-ms').value);
+        let targetMsField = document.getElementById('target-ms');
+        ensureThreeDigits(targetMsField);
+        const targetMs = parseInt(targetMsField.value);
+
         if (isNaN(targetMs)) {
             alert('❌ Enter milliseconds first');
             return;
@@ -628,7 +646,7 @@
         const actualDeviation = (performance.now() - testPerfTime) * 1000; // Convert to microseconds
 
         alert(`🧪 TEST RESULTS (microsecond precision):\n` +
-            `Target: ${targetMs}ms\n` +
+            `Target: ${targetMsField.value}ms\n` +
             `Deviation: ${actualDeviation > 0 ? '+' : ''}${actualDeviation.toFixed(3)}µs\n` +
             `Strategy: ${engine.strategies[engine.currentStrategy]}\n\n` +
             `${Math.abs(actualDeviation) < 2000 ? '✅ Good for real snipes!' : '⚠️ Calibrate for better accuracy'}`);
@@ -645,7 +663,6 @@
         document.getElementById('history-list').innerHTML = '';
         document.getElementById('countdown').textContent = '00:00.000';
         document.getElementById('micro-display').innerHTML = '';
-        document.getElementById('calibration-stats').querySelector('div:last-child').innerHTML = 'Not calibrated';
         document.getElementById('target-time').value = '';
         document.getElementById('target-ms').value = '';
         engine.calibrated = false;
@@ -691,7 +708,8 @@
         panel.style.cursor = 'default';
     });
 
-    console.log('✅ UltraSniper v4.1 (Performance.now() Engine) ready!');
+    console.log('✅ UltraSniper v4.1 (Hidden Calibration) ready!');
     console.log('📝 Enter your own target time and milliseconds');
     console.log('⚡ Microsecond precision active');
+    console.log('✨ MS field auto-formats: 5 → 005, 59 → 059, 0 → 000');
 })();
