@@ -8,7 +8,7 @@ var cookieName = "fakeypress";
 var version = "1.99";
 var updateversion = 1.7;
 // Language support
-var currentLanguage = "en"; // Default language: en, el
+var currentLanguage = "en"; // Default language: en, fr, el
 var translations = {
     "en": {
         "welcome": "Welcome to Fakeypress by Crimsoni",
@@ -38,7 +38,39 @@ var translations = {
         "error_load": "An error occurred, the page will reload.",
         "error_cookie": "Try changing the cookieName variable name. If the problem persists, go to the forum.",
         "update_data_lost": "Due to an update, data has been lost. Please reassign keys.",
-        "key_edit_mode": "Click on a button then a keyboard key to modify"
+        "key_edit_mode": "Click on a button then a keyboard key to modify",
+        "shortcut": "Shortcut"
+    },
+    "fr": {
+        "welcome": "Bienvenue sur le Fakeypress de Crimsoni",
+        "keyboard_settings": "Paramètres du clavier",
+        "buttons": "Boutons :",
+        "ignore": "Ignorer",
+        "settings": "Paramètres",
+        "hide": "Cacher",
+        "show": "Voir",
+        "load_pages": "Charger les pages",
+        "from": "De",
+        "to": "à",
+        "hide_label": "Cacher",
+        "ongoing_attacks": "Attaques en cours (spécifier à partir de) ",
+        "attacks": "Attaques",
+        "spied": "Espionné",
+        "total_victory": "Victoire Totale",
+        "losses": "Pertes",
+        "defeated_damaged": "Vaincu, mais bâtiment(s) endommagé(s)",
+        "defeated_spied": "Vaincu, mais espionné",
+        "defeated": "Défait",
+        "reset": "Réinitialiser",
+        "apply": "Appliquer",
+        "save": "Sauvegarder",
+        "reset_done": "Réinitialisation effectuée",
+        "settings_saved": "Paramètres sauvegardés",
+        "error_load": "Un problème a été rencontré, la page va se recharger.",
+        "error_cookie": "Essayez de changer le nom de la variable cookieName. Si le problème persiste, rendez vous sur le forum.",
+        "update_data_lost": "À cause d'une mise à jour, les données ont été perdues. Veuillez recommencer les assignations de touches.",
+        "key_edit_mode": "Clique sur un bouton puis une touche du clavier pour modifier",
+        "shortcut": "Touche"
     },
     "el": {
         "welcome": "Καλωσήρθατε στο Fakeypress από Crimsoni",
@@ -68,7 +100,8 @@ var translations = {
         "error_load": "Προέκυψε σφάλμα, η σελίδα θα φορτωθεί ξανά.",
         "error_cookie": "Δοκιμάστε να αλλάξετε το όνομα της μεταβλητής cookieName. Αν το πρόβλημα συνεχιστεί, επισκεφτείτε το φόρουμ.",
         "update_data_lost": "Λόγω ενημέρωσης, τα δεδομένα χάθηκαν. Παρακαλώ ορίστε ξανά τα πλήκτρα.",
-        "key_edit_mode": "Κάντε κλικ σε ένα κουμπί και μετά σε ένα πλήκτρο για τροποποίηση"
+        "key_edit_mode": "Κάντε κλικ σε ένα κουμπί και μετά σε ένα πλήκτρο για τροποποίηση",
+        "shortcut": "Συντόμευση"
     }
 };
 
@@ -78,7 +111,7 @@ function t(key) {
 
 // Language selector function
 function setLanguage(lang) {
-    if (lang === "en" || lang === "el") {
+    if (lang === "en" || lang === "fr" || lang === "el") {
         currentLanguage = lang;
         // Update cookie to save language preference
         setCookie(cookieName + "_lang", lang, 180);
@@ -92,7 +125,7 @@ function setLanguage(lang) {
 // Load saved language from cookie
 function loadSavedLanguage() {
     var savedLang = $.cookie(cookieName + "_lang");
-    if (savedLang && (savedLang === "en" || savedLang === "el")) {
+    if (savedLang && (savedLang === "en" || savedLang === "fr" || savedLang === "el")) {
         currentLanguage = savedLang;
     }
 }
@@ -407,9 +440,9 @@ function addTable() {
         $('#divFAPressSettings').remove();
     }
     $("#contentContainer h3").eq(0).after($(
-        "<div id='divFAPress' class='vis' style='font-size:12px;width:40%'><table id='faKeyPress' class='vis' style='width:100%' cellspacing='0'><thead><tr><th colspan='10' style='font-size:16px;text-align:center'>FA Keypress v" +
+        "<div id='divFAPress' class='vis' style='font-size:12px;width:40%'><table id='faKeyPress' class='vis' style='width:100%' cellspacing='0'><thead> downth<th colspan='10' style='font-size:16px;text-align:center'>FA Keypress v" +
         version +
-        " by<br> Crimsoni & Sytten</th></tr></thead>" +
+        " by<br> Crimsoni & Sytten</th> </thead>" +
         "<tbody>" +
         "<tr id='buttonRow'>" +
         "<th colspan='1' valign='middle'>" + t("buttons") + " <img src='https://media.innogamescdn.com/com_DS_FR/Scripts/Pillage/questionmark.png' title='" + t("key_edit_mode") + "' width='13' height='13' alt='' class='tooltip' />" +
@@ -425,28 +458,29 @@ function addTable() {
         "<a href='#' onclick='return setEditMode(4)' id='buttonleft' class='tooltip ' title='<-'><-</a>" +
         "<td colspan='1' align='center'>" +
         "<a href='#' onclick='return setEditMode(5)' id='buttonright' class='tooltip ' title='->'>-></a>" +
-        "</tr>" +
+        " " +
         "<tr id='keysRow'>"+
-        "<th colspan='1'>Touche:<td align='center'>" +
+        "<th colspan='1'>" + t("shortcut") + ":<td align='center'>" +
         String.fromCharCode(keycodes.a) + "<td align='center'>" + String.fromCharCode(keycodes.b) + "<td align='center'>" + String.fromCharCode(
             keycodes.c) + "<td align='center'>" + String.fromCharCode(keycodes.skip) +
-        "<td align='center'>"+ String.fromCharCode(keycodes.left)+ "<td align='center'>"+ String.fromCharCode(keycodes.right) +"</tr>" +
-        "</tbody></table></div>"));
+        "<td align='center'>"+ String.fromCharCode(keycodes.left)+ "<td align='center'>"+ String.fromCharCode(keycodes.right) +" " +
+        "</tbody> </div>"));
 
-    // Language selector dropdown
+    // Language selector dropdown - NOW WITH FRENCH
     var langSelectorHtml = "<div style='float:right; margin-right:10px;'>" +
         "<select id='languageSelector' onchange='setLanguage(this.value)'>" +
         "<option value='en'" + (currentLanguage === 'en' ? ' selected' : '') + ">English</option>" +
+        "<option value='fr'" + (currentLanguage === 'fr' ? ' selected' : '') + ">Français</option>" +
         "<option value='el'" + (currentLanguage === 'el' ? ' selected' : '') + ">Ελληνικά</option>" +
         "</select></div>";
 
     $('#divFAPress').prepend(langSelectorHtml);
 
     $('#divFAPress').append($(
-        "<table id='faKeySettings' class='vis' style='width:100%' cellspacing='0'><thead><tr><th colspan='3'><em>" + t("settings") + "</em> - <a href'#' id='showSettings' onclick='return doSettings()'>" + t("hide") + "</a></th></tr></thead><tbody id='bodySettings'><tr><td colspan='1' align='center'><input type='checkbox' id='chbLoadPages' onclick='return chkBoxClick($(this).is(\":checked\"), " +
+        "<table id='faKeySettings' class='vis' style='width:100%' cellspacing='0'><thead> downth<th colspan='3'><em>" + t("settings") + "</em> - <a href'#' id='showSettings' onclick='return doSettings()'>" + t("hide") + "</a></th> </thead><tbody id='bodySettings'> <td colspan='1' align='center'><input type='checkbox' id='chbLoadPages' onclick='return chkBoxClick($(this).is(\":checked\"), " +
         pos.s.loadp + ")'> <b>" + t("load_pages") + "</b><td colspan='4'>" + t("from") + " <input type='text' id='txtFirstPage' size='2' maxlength='2' value='" + userset[pos.s.fp] +
         "' onchange='onlyNum(this);' disabled> " + t("to") + "  <input type='text' id='txtLastPage' size='2' maxlength='2' value='" + userset[pos.s.lp] +
-        "' onchange='onlyNum(this);' disabled></tr><tr><td align='center'><b>" + t("hide_label") + "</b></td><td><input type='checkbox' id='chbRemAxes' onclick='return chkBoxClick($(this).is(\":checked\"), " + pos.s
+        "' onchange='onlyNum(this);' disabled>   <td align='center'><b>" + t("hide_label") + "</b>  <input type='checkbox' id='chbRemAxes' onclick='return chkBoxClick($(this).is(\":checked\"), " + pos.s
             .remaxes +
         ")'> <img src='https://media.innogamescdn.com/com_DS_FR/Scripts/Pillage/attacks.png' title='" + t("ongoing_attacks") + "' alt='' class='tooltip' /> " + t("ongoing_attacks") + " <input type='number' id='txtNbAttacks' size='2' maxlength='2' value='" + userset[pos.s.MaxNbAttacks] + "' onchange='onlyNum(this)' disabled><input type='checkbox' id='chbRemBlue' onclick='return chkBoxClick($(this).is(\":checked\"), " +
         pos.s.remblue +
@@ -460,7 +494,7 @@ function addTable() {
         pos.s.remredb +
         ")'> <img src='https://media.innogamescdn.com/com_DS_FR/Scripts/Pillage/red_blue.png' title='" + t("defeated_spied") + "' alt='' class='tooltip' /> " + t("defeated_spied") + "<br><input type='checkbox' id='chbRemRed' onclick='return chkBoxClick($(this).is(\":checked\"), " +
         pos.s.remred +
-        ")'> <img src='https://media.innogamescdn.com/com_DS_FR/Scripts/Pillage/red.png' title='" + t("defeated") + "' alt='' class='tooltip' /> " + t("defeated") + "</td></tr><tr><td align='right' colspan='2'><input type='button' class='btn' id='btnSettingsReset' value='" + t("reset") + "' onclick='resetCookie(); UI.SuccessMessage(\"" + t("reset_done") + "\",1000); run(); return false;'><input type='button' class='btn' id='btnSettingsApply' value='" + t("apply") + "' onclick='saveSettings(); run(); return false'><input type='button' class='btn' id='btnSettingsSave' value='" + t("save") + "' onclick='saveSettings(); return false;'></td></tr></tbody></table>"
+        ")'> <img src='https://media.innogamescdn.com/com_DS_FR/Scripts/Pillage/red.png' title='" + t("defeated") + "' alt='' class='tooltip' /> " + t("defeated") + "   <td align='right' colspan='2'><input type='button' class='btn' id='btnSettingsReset' value='" + t("reset") + "' onclick='resetCookie(); UI.SuccessMessage(\"" + t("reset_done") + "\",1000); run(); return false;'><input type='button' class='btn' id='btnSettingsApply' value='" + t("apply") + "' onclick='saveSettings(); run(); return false'><input type='button' class='btn' id='btnSettingsSave' value='" + t("save") + "' onclick='saveSettings(); return false;'> </tbody>"
     ));
 
     if (userset[pos.s.remred] === "1") {
