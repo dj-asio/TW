@@ -38,8 +38,7 @@ var translations = {
         "error_load": "An error occurred, the page will reload.",
         "error_cookie": "Try changing the cookieName variable name. If the problem persists, go to the forum.",
         "update_data_lost": "Due to an update, data has been lost. Please reassign keys.",
-        "key_edit_mode": "Click on a button then a keyboard key to modify",
-        "shortcut": "Shortcut"
+        "key_edit_mode": "Click on a button then a keyboard key to modify"
     },
     "fr": {
         "welcome": "Bienvenue sur le Fakeypress de Crimsoni",
@@ -69,8 +68,7 @@ var translations = {
         "error_load": "Un problème a été rencontré, la page va se recharger.",
         "error_cookie": "Essayez de changer le nom de la variable cookieName. Si le problème persiste, rendez vous sur le forum.",
         "update_data_lost": "À cause d'une mise à jour, les données ont été perdues. Veuillez recommencer les assignations de touches.",
-        "key_edit_mode": "Clique sur un bouton puis une touche du clavier pour modifier",
-        "shortcut": "Touche"
+        "key_edit_mode": "Clique sur un bouton puis une touche du clavier pour modifier"
     },
     "el": {
         "welcome": "Καλωσήρθατε στο Fakeypress από Crimsoni",
@@ -100,8 +98,7 @@ var translations = {
         "error_load": "Προέκυψε σφάλμα, η σελίδα θα φορτωθεί ξανά.",
         "error_cookie": "Δοκιμάστε να αλλάξετε το όνομα της μεταβλητής cookieName. Αν το πρόβλημα συνεχιστεί, επισκεφτείτε το φόρουμ.",
         "update_data_lost": "Λόγω ενημέρωσης, τα δεδομένα χάθηκαν. Παρακαλώ ορίστε ξανά τα πλήκτρα.",
-        "key_edit_mode": "Κάντε κλικ σε ένα κουμπί και μετά σε ένα πλήκτρο για τροποποίηση",
-        "shortcut": "Συντόμευση"
+        "key_edit_mode": "Κάντε κλικ σε ένα κουμπί και μετά σε ένα πλήκτρο για τροποποίηση"
     }
 };
 
@@ -460,7 +457,7 @@ function addTable() {
         "<a href='#' onclick='return setEditMode(5)' id='buttonright' class='tooltip ' title='->'>-></a>" +
         " " +
         "<tr id='keysRow'>"+
-        "<th colspan='1'>" + t("shortcut") + ":<td align='center'>" +
+        "<th colspan='1'>Touche:<td align='center'>" +
         String.fromCharCode(keycodes.a) + "<td align='center'>" + String.fromCharCode(keycodes.b) + "<td align='center'>" + String.fromCharCode(
             keycodes.c) + "<td align='center'>" + String.fromCharCode(keycodes.skip) +
         "<td align='center'>"+ String.fromCharCode(keycodes.left)+ "<td align='center'>"+ String.fromCharCode(keycodes.right) +" " +
