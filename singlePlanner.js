@@ -33,11 +33,14 @@ var TIME_INTERVAL = 60 * 60 * 1000 * 24 * 365;
 var GROUP_ID = localStorage.getItem(`${LS_PREFIX}_chosen_group`) ?? 0;
 var LAST_UPDATED_TIME = localStorage.getItem(`${LS_PREFIX}_last_updated`) ?? 0;
 
+
 // Globals
 var unitInfo,
     troopCounts = [],
     currentDestinationVillage = '',
     currentLandingTime = null;
+var worldSpeed = 1.0;
+var unitSpeedModifier = 1.0;
 
 // Translations
 var translations = {
@@ -171,6 +174,29 @@ var translations = {
 // Init Debug
 initDebug();
 
+// NEW: Fetch world configuration to get speed multipliers
+async function fetchWorldConfig() {
+    try {
+        const response = await jQuery.ajax({
+            url: '/interface.php?func=get_config',
+            method: 'GET'
+        });
+
+        if (response && response.config) {
+            // Parse the world speed and unit speed from config
+            worldSpeed = parseFloat(response.config.world_speed) || 1.0;
+            unitSpeedModifier = parseFloat(response.config.unit_speed) || 1.0;
+
+            console.debug(`World Speed: ${worldSpeed}, Unit Speed Modifier: ${unitSpeedModifier}`);
+        }
+    } catch (error) {
+        console.error('Failed to fetch world config:', error);
+        // Fallback to default values
+        worldSpeed = game_data.world_speed || 1.0;
+        unitSpeedModifier = game_data.unit_speed || 1.0;
+    }
+}
+
 // Fetch unit config only when needed
 if (LAST_UPDATED_TIME !== null) {
     if (Date.parse(new Date()) >= LAST_UPDATED_TIME + TIME_INTERVAL) {
@@ -184,6 +210,8 @@ if (LAST_UPDATED_TIME !== null) {
 
 // Initialize Attack Planner
 async function initAttackPlanner(groupId) {
+    // First, fetch world configuration for speed multipliers
+    await fetchWorldConfig();
     // run on script load
     const groups = await fetchVillageGroups();
     troopCounts = await fetchTroopsForCurrentGroup(groupId);
@@ -291,22 +319,24 @@ function getDestinationVillage() {
     return destinationVillage;
 }
 
-// FIXED: Calculate travel time for a unit
+// FIXED: Calculate travel time with world speed and unit speed modifiers
 function calculateTravelTime(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
     }
 
-    // Unit speed is in minutes per field
-    const minutesPerField = parseFloat(unitInfo.config[unitType].speed);
+    // Base unit speed from API (minutes per field at speed 1)
+    const baseUnitSpeed = parseFloat(unitInfo.config[unitType].speed);
 
-    // Travel time in minutes
-    const travelTimeMinutes = distance * minutesPerField;
+    // Apply world speed and unit speed modifiers
+    // Formula: Travel Time (minutes) = (Distance × Base Speed) / (World Speed × Unit Speed)
+    const effectiveSpeed = worldSpeed * unitSpeedModifier;
+    const travelTimeMinutes = (distance * baseUnitSpeed) / effectiveSpeed;
 
     // Convert to milliseconds
     const travelTimeMs = Math.round(travelTimeMinutes * 60 * 1000);
 
-    // Calculate hours, minutes, seconds for display
+    // Format for display
     const totalSeconds = Math.floor(travelTimeMinutes * 60);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -320,7 +350,8 @@ function calculateTravelTime(unitType, distance) {
     return {
         minutes: travelTimeMinutes,
         milliseconds: travelTimeMs,
-        formatted: formatted.trim()
+        formatted: formatted.trim(),
+        effectiveSpeed: effectiveSpeed
     };
 }
 
@@ -787,12 +818,18 @@ function getPlans(landingTime, destinationVillage, villagesUnitsToSend) {
     return filteredPlans;
 }
 
-// Add a debug function to verify unit speeds
+// Debug function to verify calculations
 function debugUnitSpeeds() {
     if (unitInfo && unitInfo.config) {
-        console.debug('Unit speeds (minutes per field):');
+        console.debug('=== World Settings ===');
+        console.debug(`World Speed: ${worldSpeed}x`);
+        console.debug(`Unit Speed Modifier: ${unitSpeedModifier}x`);
+        console.debug(`Effective Speed: ${worldSpeed * unitSpeedModifier}x`);
+        console.debug('=== Unit Speeds (minutes per field) ===');
         for (const [unit, data] of Object.entries(unitInfo.config)) {
-            console.debug(`  ${unit}: ${data.speed} min/field`);
+            const baseSpeed = parseFloat(data.speed);
+            const effectiveSpeed = (baseSpeed / (worldSpeed * unitSpeedModifier)).toFixed(2);
+            console.debug(`  ${unit}: base=${baseSpeed} min/field → effective=${effectiveSpeed} min/field`);
         }
     }
 }
@@ -879,17 +916,19 @@ function calculateDistance(villageA, villageB) {
 }
 
 // Helper: Get launch time of command
-// FIXED: Get launch time of command (used in export)
+
+// FIXED: Get launch time with world speed support
 function getLaunchTime(unit, landingTime, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unit]) {
         return null;
     }
 
-    // Unit speed is in minutes per field
-    const minutesPerField = parseFloat(unitInfo.config[unit].speed);
+    // Base unit speed (minutes per field)
+    const baseUnitSpeed = parseFloat(unitInfo.config[unit].speed);
 
-    // Travel time in minutes
-    const travelTimeMinutes = distance * minutesPerField;
+    // Apply world speed and unit speed modifiers
+    const effectiveSpeed = worldSpeed * unitSpeedModifier;
+    const travelTimeMinutes = (distance * baseUnitSpeed) / effectiveSpeed;
 
     // Convert to milliseconds
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
@@ -1195,17 +1234,18 @@ async function fetchVillageGroups() {
     return villageGroups;
 }
 
-// Helper: Fetch World Unit Info
+// Also update fetchUnitInfo to trigger after config is loaded
 function fetchUnitInfo() {
-    jQuery
-        .ajax({
-            url: '/interface.php?func=get_unit_info',
-        })
-        .done(function (response) {
-            unitInfo = xml2json($(response));
-            localStorage.setItem(`${LS_PREFIX}_unit_info`, JSON.stringify(unitInfo));
-            localStorage.setItem(`${LS_PREFIX}_last_updated`, Date.parse(new Date()));
-        });
+    jQuery.ajax({
+        url: '/interface.php?func=get_unit_info',
+    }).done(function (response) {
+        unitInfo = xml2json($(response));
+        localStorage.setItem(`${LS_PREFIX}_unit_info`, JSON.stringify(unitInfo));
+        localStorage.setItem(`${LS_PREFIX}_last_updated`, Date.parse(new Date()));
+
+        // Debug output to verify speeds are correct
+        debugUnitSpeeds();
+    });
 }
 
 // Helper: Fetch home troop counts for current group
