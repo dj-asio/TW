@@ -205,7 +205,7 @@ function calculateExactSendTime(unitType, distance, landingTime) {
     return sendTime;
 }
 
-// Get travel time formatted string
+// CORRECTED: Get travel time formatted string - ACCURATE ROUNDING
 function getTravelTimeFormatted(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return '';
@@ -215,7 +215,8 @@ function getTravelTimeFormatted(unitType, distance) {
     const speedMultiplier = worldSpeed * unitSpeedModifier;
     const travelTimeMinutes = (distance * baseSpeedMinutes) / speedMultiplier;
 
-    const totalSeconds = Math.floor(travelTimeMinutes * 60);
+    // Round to nearest second for display (matches Tribal Wars)
+    const totalSeconds = Math.round(travelTimeMinutes * 60);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
@@ -367,7 +368,7 @@ async function initAttackPlanner(groupId) {
     updateTravelTimeOnLandingChange();
 }
 
-// Update travel time display for a village
+// CORRECTED: Update travel time display for a village
 function updateTravelTimeForVillage(villageRow, unitType, distance) {
     const distanceCell = villageRow.find('td:eq(1)');
 
@@ -385,7 +386,7 @@ function updateTravelTimeForVillage(villageRow, unitType, distance) {
         const formattedSendTime = formatDateTime(sendTime);
         distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">🕒 ${formattedSendTime}</span>`);
     } else if (sendTime && sendTime < serverTime) {
-        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">⚠️ ${tt('Send Time')} Άκυρο ψηλέ!</span>`);
+        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">⚠️ ${tt('Send Time')} passed</span>`);
     } else {
         distanceCell.html(distance.toFixed(2));
     }
