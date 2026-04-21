@@ -1,14 +1,14 @@
 /*
  * Script Name: Single Village Planner
- * Version: v2.1.3
+ * Version: v2.1.4
  * Last Updated: 2025-08-15
  * Author: RedAlert
  * Author URL: https://twscripts.dev/
  * Author Contact: redalert_tw (Discord)
  * Approved: t14559753
  * Approved Date: 2021-02-11
- * Mod: JawJaw
- * Update: Added dynamic travel time display based on selected unit
+ * Mod: Asio
+ * Update: Fixed travel time calculations for accuracy
  */
 
 /* Copyright (c) RedAlert
@@ -17,7 +17,7 @@ By uploading a user-generated mod (script) for use with Tribal Wars, you grant I
 
 var scriptData = {
     name: 'Single Village Planner',
-    version: 'v2.1.3',
+    version: 'v2.1.4',
     author: 'RedAlert',
     authorUrl: 'https://twscripts.dev/',
     helpLink:
@@ -291,24 +291,36 @@ function getDestinationVillage() {
     return destinationVillage;
 }
 
-// NEW: Calculate travel time for a unit
+// FIXED: Calculate travel time for a unit
 function calculateTravelTime(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
     }
 
-    const msPerSec = 1000;
-    const secsPerMin = 60;
-    const msPerMin = msPerSec * secsPerMin;
+    // Unit speed is in minutes per field
+    const minutesPerField = parseFloat(unitInfo.config[unitType].speed);
 
-    const unitSpeed = parseFloat(unitInfo.config[unitType].speed);
-    const travelTimeMinutes = distance * unitSpeed;
-    const travelTimeMs = travelTimeMinutes * msPerMin;
+    // Travel time in minutes
+    const travelTimeMinutes = distance * minutesPerField;
+
+    // Convert to milliseconds
+    const travelTimeMs = Math.round(travelTimeMinutes * 60 * 1000);
+
+    // Calculate hours, minutes, seconds for display
+    const totalSeconds = Math.floor(travelTimeMinutes * 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    let formatted = '';
+    if (hours > 0) formatted += `${hours}h `;
+    if (minutes > 0 || hours > 0) formatted += `${minutes}m `;
+    formatted += `${seconds}s`;
 
     return {
         minutes: travelTimeMinutes,
         milliseconds: travelTimeMs,
-        formatted: formatTravelTime(travelTimeMinutes)
+        formatted: formatted.trim()
     };
 }
 
@@ -327,19 +339,18 @@ function formatTravelTime(minutes) {
     }
 }
 
-// NEW: Calculate send time based on landing time and travel time
+// FIXED: Calculate send time based on landing time and travel time
 function calculateSendTime(landingTime, travelTimeMs) {
     if (!landingTime) return null;
     const sendTime = new Date(landingTime.getTime() - travelTimeMs);
     return sendTime;
 }
 
-// NEW: Update the distance column to show travel time or send time for selected unit
+// FIXED: Update travel time display for a village
 function updateTravelTimeForVillage(villageRow, unitType, distance) {
     const distanceCell = villageRow.find('td:eq(1)');
 
     if (!unitType || !currentLandingTime) {
-        // Show distance if no unit selected or no landing time
         const originalDistance = distanceCell.attr('data-original-distance');
         if (originalDistance) {
             distanceCell.html(parseFloat(originalDistance).toFixed(2));
@@ -358,14 +369,17 @@ function updateTravelTimeForVillage(villageRow, unitType, distance) {
     }
 
     const sendTime = calculateSendTime(currentLandingTime, travelTime.milliseconds);
-    if (sendTime && sendTime >= getServerTime()) {
+    const serverTime = getServerTime();
+
+    if (sendTime && sendTime >= serverTime) {
         const formattedSendTime = formatDateTime(sendTime);
-        distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTime.formatted}">🕒 ${formattedSendTime}</span>`);
+        // Show the send time with the travel time as tooltip
+        distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="Travel time: ${travelTime.formatted}">🕒 ${formattedSendTime}</span>`);
         distanceCell.attr('data-showing', 'sendtime');
         distanceCell.attr('data-send-time', sendTime.getTime());
         distanceCell.attr('data-travel-time', travelTime.formatted);
-    } else if (sendTime && sendTime < getServerTime()) {
-        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTime.formatted}">⚠️ ${tt('Send Time')} passed</span>`);
+    } else if (sendTime && sendTime < serverTime) {
+        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="Travel time: ${travelTime.formatted}">⚠️ Send time passed</span>`);
         distanceCell.attr('data-showing', 'warning');
     } else {
         const originalDistance = distanceCell.attr('data-original-distance');
@@ -733,40 +747,62 @@ function setAllUnits() {
     );
 }
 
-// Prepare plans based on user input
+// FIXED: Get plans for export
 function getPlans(landingTime, destinationVillage, villagesUnitsToSend) {
     let plans = [];
 
     villagesUnitsToSend.forEach((item) => {
         const launchTime = getLaunchTime(item.unit, landingTime, item.distance);
-        const plan = {
-            destination: destinationVillage,
-            landingTime: landingTime,
-            distance: item.distance,
-            unit: item.unit,
-            highPrio: item.highPrio,
-            villageId: item.id,
-            launchTime: launchTime,
-            coords: item.coords,
-            launchTimeFormatted: formatDateTime(launchTime),
-        };
-        plans.push(plan);
+        if (launchTime) {
+            const plan = {
+                destination: destinationVillage,
+                landingTime: landingTime,
+                distance: item.distance,
+                unit: item.unit,
+                highPrio: item.highPrio,
+                villageId: item.id,
+                launchTime: launchTime,
+                coords: item.coords,
+                launchTimeFormatted: formatDateTime(new Date(launchTime)),
+            };
+            plans.push(plan);
+        }
     });
 
+    // Sort by launch time (earliest first)
     plans.sort((a, b) => {
         return a.launchTime - b.launchTime;
     });
 
     console.debug('plans', plans);
 
+    // Filter only valid launch times (not in the past)
+    const serverTime = getServerTime();
     const filteredPlans = plans.filter((item) => {
-        return item.launchTime >= getServerTime().getTime();
+        return item.launchTime >= serverTime.getTime();
     });
 
     console.debug('filteredPlans', filteredPlans);
 
     return filteredPlans;
 }
+
+// Add a debug function to verify unit speeds
+function debugUnitSpeeds() {
+    if (unitInfo && unitInfo.config) {
+        console.debug('Unit speeds (minutes per field):');
+        for (const [unit, data] of Object.entries(unitInfo.config)) {
+            console.debug(`  ${unit}: ${data.speed} min/field`);
+        }
+    }
+}
+
+// Call debug after unit info loads
+const originalFetchUnitInfo = fetchUnitInfo;
+fetchUnitInfo = function() {
+    originalFetchUnitInfo();
+    setTimeout(debugUnitSpeeds, 1000);
+};
 
 // Export plan as BB Code
 function getBBCodePlans(plans, destinationVillage) {
@@ -843,15 +879,28 @@ function calculateDistance(villageA, villageB) {
 }
 
 // Helper: Get launch time of command
+// FIXED: Get launch time of command (used in export)
 function getLaunchTime(unit, landingTime, distance) {
-    const msPerSec = 1000;
-    const secsPerMin = 60;
-    const msPerMin = msPerSec * secsPerMin;
-    const unitSpeed = unitInfo.config[unit].speed;
-    const unitTime = distance * unitSpeed * msPerMin;
-    const launchTime = new Date();
-    launchTime.setTime(Math.round((landingTime - unitTime) / msPerSec) * msPerSec);
-    return launchTime.getTime();
+    if (!unitInfo || !unitInfo.config || !unitInfo.config[unit]) {
+        return null;
+    }
+
+    // Unit speed is in minutes per field
+    const minutesPerField = parseFloat(unitInfo.config[unit].speed);
+
+    // Travel time in minutes
+    const travelTimeMinutes = distance * minutesPerField;
+
+    // Convert to milliseconds
+    const travelTimeMs = travelTimeMinutes * 60 * 1000;
+
+    // Calculate send time
+    const sendTime = new Date(landingTime.getTime() - travelTimeMs);
+
+    // Round to nearest second to match Tribal Wars
+    const roundedSendTime = Math.round(sendTime.getTime() / 1000) * 1000;
+
+    return roundedSendTime;
 }
 
 // Helper: Get server time
