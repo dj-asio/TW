@@ -385,7 +385,7 @@ function updateTravelTimeForVillage(villageRow, unitType, distance) {
         const formattedSendTime = formatDateTime(sendTime);
         distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">🕒 ${formattedSendTime}</span>`);
     } else if (sendTime && sendTime < serverTime) {
-        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">⚠️ ${tt('Send Time')} passed</span>`);
+        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">⚠️ ${tt('Send Time')} Άκυρο ψηλέ!</span>`);
     } else {
         distanceCell.html(distance.toFixed(2));
     }
