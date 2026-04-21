@@ -191,22 +191,20 @@ async function loadUnitInfo() {
     }
 }
 
-// NEW: Calculate travel time with world settings
+// CORRECTED: Calculate travel time with world settings
 function calculateTravelTimeWithWorld(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
     }
 
-    // Base speed from API (minutes per field at speed 1)
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
+    const speedMultiplier = worldSpeed * unitSpeedModifier;
 
-    // Apply world speed and unit speed modifiers
-    const effectiveMultiplier = worldSpeed * unitSpeedModifier;
-    const effectiveSpeedMinutes = baseSpeedMinutes / effectiveMultiplier;
+    // Travel time in minutes
+    const travelTimeMinutes = (distance * baseSpeedMinutes) / speedMultiplier;
 
-    // Travel time in milliseconds - use Math.floor to match Tribal Wars
-    const travelTimeMs = Math.floor(distance * effectiveSpeedMinutes * 60 * 1000);
-    const travelTimeMinutes = travelTimeMs / (60 * 1000);
+    // Convert to milliseconds - NO EXTRA ROUNDING
+    const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
     // Format for display
     const totalSeconds = Math.floor(travelTimeMinutes * 60);
@@ -350,15 +348,18 @@ function calculateDistance(villageA, villageB) {
     return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
 }
 
-// Helper: Get launch time of command with world settings
+// CORRECTED: Get launch time
 function getLaunchTime(unit, landingTime, distance) {
     const travelTime = calculateTravelTimeWithWorld(unit, distance);
     if (!travelTime) return null;
 
+    // Direct subtraction - no rounding
     const sendTime = new Date(landingTime.getTime() - travelTime.milliseconds);
-    const roundedSendTime = Math.round(sendTime.getTime() / 1000) * 1000;
-    return roundedSendTime;
+
+    // Truncate to seconds (Tribal Wars doesn't use milliseconds)
+    return Math.floor(sendTime.getTime() / 1000) * 1000;
 }
+
 
 // Helper: Get server time
 function getServerTime() {
@@ -398,39 +399,33 @@ function getLandingTime(landingTime) {
     return landingTimeObject;
 }
 
-// NEW: Update travel time display for a village
+// CORRECTED: Update travel time display
 function updateTravelTimeForVillage(villageRow, unitType, distance) {
     const distanceCell = villageRow.find('td:eq(1)');
 
     if (!unitType || !currentLandingTime) {
         const originalDistance = distanceCell.attr('data-original-distance');
         distanceCell.html(originalDistance || distance.toFixed(2));
-        distanceCell.attr('data-showing', 'distance');
         return;
     }
 
     const travelTime = calculateTravelTimeWithWorld(unitType, distance);
-    if (!travelTime) {
-        const originalDistance = distanceCell.attr('data-original-distance');
-        distanceCell.html(originalDistance || distance.toFixed(2));
-        return;
-    }
+    if (!travelTime) return;
 
+    // Direct calculation - no intermediate rounding
     const sendTime = new Date(currentLandingTime.getTime() - travelTime.milliseconds);
-    sendTime.setMilliseconds(0);
     const serverTime = getServerTime();
 
-    if (sendTime && sendTime >= serverTime) {
+    // Truncate milliseconds to match Tribal Wars
+    sendTime.setMilliseconds(0);
+
+    if (sendTime >= serverTime) {
         const formattedSendTime = formatDateTime(sendTime);
         distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTime.formatted}">🕒 ${formattedSendTime}</span>`);
-        distanceCell.attr('data-showing', 'sendtime');
-    } else if (sendTime && sendTime < serverTime) {
+    } else if (sendTime < serverTime) {
         distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTime.formatted}">⚠️ ${tt('Send Time')} passed</span>`);
-        distanceCell.attr('data-showing', 'warning');
     } else {
-        const originalDistance = distanceCell.attr('data-original-distance');
-        distanceCell.html(originalDistance || distance.toFixed(2));
-        distanceCell.attr('data-showing', 'distance');
+        distanceCell.html(distance.toFixed(2));
     }
 }
 
