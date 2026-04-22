@@ -1,14 +1,14 @@
 /*
  * Script Name: Single Village Planner
- * Version: v3.0.1
+ * Version: v3.0.2
  * Last Updated: 2025-08-15
  * Author: RedAlert
- * Mod: Asio - Fixed group change + AJAX travel times with fallback
+ * Mod: JawJaw - Fixed group change + 1-second accuracy
  */
 
 var scriptData = {
     name: 'Single Village Planner',
-    version: 'v3.0.1',
+    version: 'v3.0.2',
     author: 'RedAlert',
     authorUrl: 'https://twscripts.dev/',
     helpLink: 'https://forum.tribalwars.net/index.php?threads/single-village-planner.286667/',
@@ -145,8 +145,7 @@ function formatDateTime(date) {
 function getLandingTime(landingTime) {
     const [landingDay, landingHour] = landingTime.split(' ');
     const [day, month, year] = landingDay.split('/');
-    const landingTimeFormatted = year + '-' + month + '-' + day + 'T' + landingHour;
-    return new Date(landingTimeFormatted);
+    return new Date(year, month - 1, day, landingHour.split(':')[0], landingHour.split(':')[1], landingHour.split(':')[2]);
 }
 
 function getDestinationVillage() {
@@ -248,7 +247,6 @@ async function calculateTravelTimeFallback(villageId, targetCoords, unitType) {
         if (!worldConfig) worldConfig = await fetchWorldConfig();
         if (!unitSpeeds) unitSpeeds = await fetchUnitSpeeds();
 
-        // Get village coordinates from the table
         let fromCoords = null;
         jQuery(`#raAttackPlannerTable img[data-village-id="${villageId}"]`).each(function() {
             fromCoords = jQuery(this).attr('data-village-coords');
@@ -262,11 +260,13 @@ async function calculateTravelTimeFallback(villageId, targetCoords, unitType) {
         const distance = calculateDistanceTo3Decimals(fromCoords, targetCoords);
         const baseSpeedMinutes = parseFloat(unitSpeeds.config[unitType]?.speed || 30);
         const effectiveMultiplier = worldConfig.worldSpeed * worldConfig.unitSpeed;
+
+        // CRITICAL: Add 0.5 seconds then floor to match game's rounding (ceil)
         const travelSecondsRaw = (distance * baseSpeedMinutes * 60) / effectiveMultiplier;
-        const travelSeconds = Math.round(travelSecondsRaw);
+        const travelSeconds = Math.floor(travelSecondsRaw + 0.5);
         const travelMs = travelSeconds * 1000;
 
-        console.debug(`Fallback: ${unitType} distance=${distance} → ${travelMs} ms`);
+        console.debug(`Fallback: ${unitType} distance=${distance} → ${travelSeconds}s (${travelMs}ms)`);
         return travelMs;
     } catch (error) {
         console.error('Fallback failed:', error);
@@ -300,8 +300,9 @@ async function getTravelTimeFromGame(villageId, targetCoords, unitType) {
                 if (!duration) duration = $html.find('[data-duration]').data('duration');
 
                 if (duration !== undefined && duration !== null) {
+                    // Game returns duration in seconds, convert to ms
                     travelMs = duration * 1000;
-                    console.debug(`AJAX success: ${travelMs} ms`);
+                    console.debug(`AJAX success: ${duration}s = ${travelMs}ms`);
                     break;
                 }
             } catch (error) {
@@ -498,7 +499,7 @@ async function updateSendTimeForVillage(villageRow, unitType, villageId, village
     }
 }
 
-// ============ EVENT HANDLERS (ALL USING EVENT DELEGATION) ============
+// ============ EVENT HANDLERS ============
 
 function attachEventHandlers() {
     // Unit selection
@@ -627,13 +628,16 @@ function attachEventHandlers() {
         location.reload();
     });
 
-    // Group filter - CRITICAL FIX: full page reload
+    // Group filter - CRITICAL FIX: Use reload with current village
     jQuery(document).on('change', '#raGroupsFilter', function(e) {
         e.preventDefault();
         const newGroupId = jQuery(this).val();
         localStorage.setItem(`${LS_PREFIX}_chosen_group`, newGroupId);
         travelTimeCache.clear();
-        window.location.href = `/game.php?screen=info_village&village=${game_data.village.id}`;
+        // Get current village ID from URL or game_data
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentVillage = urlParams.get('village') || game_data.village.id;
+        window.location.href = `/game.php?screen=info_village&village=${currentVillage}`;
     });
 
     // Set all units
@@ -665,9 +669,12 @@ function attachEventHandlers() {
 // ============ INITIALIZATION ============
 
 async function init() {
-    console.debug('=== Single Village Planner v3.0.1 ===');
+    console.debug('=== Single Village Planner v3.0.2 ===');
+
+    // Show loading
     jQuery('#contentContainer').prepend(`<div id="raSingleVillagePlanner" style="margin:10px; padding:10px; border:1px solid #603000; background:#f4e4bc; text-align:center;"><h2>${tt('Single Village Planner')}</h2><p>Loading...</p></div>`);
 
+    // Fetch data
     const groups = await fetchVillageGroups();
     troopCounts = await fetchTroopsForCurrentGroup();
     let villages = await fetchAllPlayerVillagesByGroup(GROUP_ID);
@@ -679,7 +686,7 @@ async function init() {
 
     const fullHtml = `
         <div id="raSingleVillagePlanner" style="margin:10px; padding:10px; border:1px solid #603000; background:#f4e4bc;">
-            <h2>${tt('Single Village Planner')}</h2>
+            <h2>${tt('Single Village Planner')} v3.0.2</h2>
             <div style="display: grid; grid-template-columns: 1fr 150px; gap: 20px; margin-bottom:15px;">
                 <div>
                     <label for="raLandingTime">${tt('Landing Time')} (dd/mm/yyyy HH:mm:ss)</label>
