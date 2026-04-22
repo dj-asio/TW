@@ -147,20 +147,24 @@ function getLandingTime(landingTime) {
     return new Date(landingTimeFormatted);
 }
 
-// Helper: Calculate distance between 2 villages
+// CORRECTED: Calculate distance between 2 villages - EXACT
 function calculateDistance(villageA, villageB) {
     if (!villageA || !villageB) return 0;
-    const partsA = villageA.split('|');
-    const partsB = villageB.split('|');
-    if (partsA.length !== 2 || partsB.length !== 2) return 0;
 
-    const x1 = parseInt(partsA[0]);
-    const y1 = parseInt(partsA[1]);
-    const x2 = parseInt(partsB[0]);
-    const y2 = parseInt(partsB[1]);
+    // Parse coordinates as integers
+    const [x1, y1] = villageA.split('|').map(Number);
+    const [x2, y2] = villageB.split('|').map(Number);
+
     if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return 0;
 
-    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+    // Calculate exact distance - NO ROUNDING
+    const deltaX = x1 - x2;
+    const deltaY = y1 - y2;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Tribal Wars uses the EXACT distance for travel time calculation
+    // Do NOT round here - rounding should only happen for display
+    return distance;
 }
 
 // Get destination village coordinates
@@ -300,53 +304,57 @@ function xml2json($xml) {
 
 // ============ TIME CALCULATION FUNCTIONS - CORRECTED ============
 
-// Calculate travel time in milliseconds - ONLY uses unit_speed
+// Calculate EXACT travel time in milliseconds - NO ROUNDING ANYWHERE
 function getExactTravelTimeMs(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         console.error(`No unit info for: ${unitType}`);
         return null;
     }
 
-    // Base speed from API (minutes per field at unit_speed=1)
+    // Base speed from API (minutes per field)
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
 
-    // Apply unit speed modifier from API
-    // Formula: Travel time = distance × baseSpeed / unitSpeed
-    // unitSpeed=1 = normal, 0.5 = half speed (double time), 2 = double speed (half time)
+    // Apply unit speed modifier
+    // Formula: Travel time (minutes) = distance × baseSpeed / unitSpeed
     const travelTimeMinutes = (distance * baseSpeedMinutes) / unitSpeedModifier;
 
-    // Convert to milliseconds
+    // Convert to milliseconds - NO ROUNDING
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
-    console.debug(`[${unitType}] Distance: ${distance}, Base speed: ${baseSpeedMinutes} min/field`);
-    console.debug(`  Unit Speed: ${unitSpeedModifier}x → Travel: ${travelTimeMinutes} minutes (${travelTimeMs} ms)`);
+    // Debug output
+    console.debug(`[${unitType}] Distance: ${distance} (raw, unrounded)`);
+    console.debug(`  Base speed: ${baseSpeedMinutes} min/field`);
+    console.debug(`  Unit speed: ${unitSpeedModifier}x`);
+    console.debug(`  Travel: ${travelTimeMinutes} minutes = ${travelTimeMs} ms`);
 
     return travelTimeMs;
 }
 
-// Calculate send time
+// Calculate EXACT send time
 function getExactSendTime(unitType, distance, landingTime) {
     const travelMs = getExactTravelTimeMs(unitType, distance);
     if (travelMs === null) return null;
 
+    // Subtract travel time from landing time
     const sendTime = new Date(landingTime.getTime() - travelMs);
 
-    console.debug(`Landing: ${formatDateTime(landingTime)}`);
-    console.debug(`Travel: ${travelMs} ms (${travelMs/1000} seconds)`);
-    console.debug(`Send: ${formatDateTime(sendTime)}`);
+    console.debug(`  Landing: ${landingTime.getTime()} ms (${formatDateTime(landingTime)})`);
+    console.debug(`  Travel:  ${travelMs} ms`);
+    console.debug(`  Send:    ${sendTime.getTime()} ms (${formatDateTime(sendTime)})`);
 
     return sendTime;
 }
 
-// Format travel time for display
+// Format travel time for display - ROUNDS for display ONLY
 function formatTravelTime(unitType, distance) {
     const travelMs = getExactTravelTimeMs(unitType, distance);
     if (travelMs === null) return '';
 
-    const totalSec = Math.floor(travelMs / 1000);
-    const hours = Math.floor(totalSec / 3600);
-    const minutes = Math.floor((totalSec % 3600) / 60);
-    const seconds = totalSec % 60;
+    // Round to nearest second for display
+    const totalSeconds = Math.round(travelMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
 
     let result = '';
     if (hours > 0) result += `${hours}h `;
