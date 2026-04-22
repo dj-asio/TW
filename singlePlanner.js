@@ -1,14 +1,14 @@
 /*
  * Script Name: Single Village Planner
- * Version: v2.2.4
- * Last Updated: 2026-04-22
+ * Version: v2.3.0
+ * Last Updated: 2025-08-15
  * Author: RedAlert
- * Mod: Asio - Final version with correct time calculations
+ * Mod: Asio - Always reads world settings from API
  */
 
 var scriptData = {
     name: 'Single Village Planner',
-    version: 'v2.2.4',
+    version: 'v2.3.0',
     author: 'RedAlert',
     authorUrl: 'https://twscripts.dev/',
     helpLink: 'https://forum.tribalwars.net/index.php?threads/single-village-planner.286667/',
@@ -21,12 +21,12 @@ var GROUP_ID = localStorage.getItem(`${LS_PREFIX}_chosen_group`) ?? 0;
 var LAST_UPDATED_TIME = localStorage.getItem(`${LS_PREFIX}_last_updated`) ?? 0;
 
 // Globals
-var unitInfo,
-    troopCounts = [],
-    currentDestinationVillage = '',
-    currentLandingTime = null,
-    worldSpeed = 1.0,
-    unitSpeedModifier = 1.0;
+var unitInfo = null;
+var troopCounts = [];
+var currentDestinationVillage = '';
+var currentLandingTime = null;
+var worldSpeed = 1.0;
+var unitSpeedModifier = 1.0;
 
 // Translations
 var translations = {
@@ -108,35 +108,220 @@ var translations = {
 
 function tt(string) {
     var gameLocale = game_data.locale;
-    if (translations[gameLocale] !== undefined) {
+    if (translations[gameLocale] !== undefined && translations[gameLocale][string]) {
         return translations[gameLocale][string];
     }
-    return translations['en_DK'][string];
+    return translations['en_DK'][string] || string;
 }
 
-// Get world settings from game_data (NO API CALL NEEDED)
-function getWorldSettings() {
-    if (typeof game_data !== 'undefined') {
-        worldSpeed = game_data.world_speed || 1.0;
-        unitSpeedModifier = game_data.unit_speed || 1.0;
-        console.debug(`World settings: Speed=${worldSpeed}x, Unit Speed=${unitSpeedModifier}x`);
-    } else {
-        console.warn('game_data not available, using defaults');
-        worldSpeed = 1.0;
-        unitSpeedModifier = 1.0;
+function formatAsNumber(number) {
+    return parseInt(number).toLocaleString('de');
+}
+
+// Helper: Get server time
+function getServerTime() {
+    const serverTime = jQuery('#serverTime').text();
+    const serverDate = jQuery('#serverDate').text();
+    const [day, month, year] = serverDate.split('/');
+    const serverTimeFormatted = year + '-' + month + '-' + day + ' ' + serverTime;
+    return new Date(serverTimeFormatted);
+}
+
+// Helper: Format date
+function formatDateTime(date) {
+    if (!date || isNaN(date.getTime())) return '';
+    let d = new Date(date);
+    let day = d.getDate().toString().padStart(2, '0');
+    let month = (d.getMonth() + 1).toString().padStart(2, '0');
+    let year = d.getFullYear();
+    let hours = d.getHours().toString().padStart(2, '0');
+    let minutes = d.getMinutes().toString().padStart(2, '0');
+    let seconds = d.getSeconds().toString().padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
+
+// Helper: Get landing time date object
+function getLandingTime(landingTime) {
+    const [landingDay, landingHour] = landingTime.split(' ');
+    const [day, month, year] = landingDay.split('/');
+    const landingTimeFormatted = year + '-' + month + '-' + day + ' ' + landingHour;
+    return new Date(landingTimeFormatted);
+}
+
+// Helper: Calculate distance between 2 villages
+function calculateDistance(villageA, villageB) {
+    if (!villageA || !villageB) return 0;
+    const partsA = villageA.split('|');
+    const partsB = villageB.split('|');
+    if (partsA.length !== 2 || partsB.length !== 2) return 0;
+
+    const x1 = parseInt(partsA[0]);
+    const y1 = parseInt(partsA[1]);
+    const x2 = parseInt(partsB[0]);
+    const y2 = parseInt(partsB[1]);
+    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return 0;
+
+    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+}
+
+// Get destination village coordinates
+function getDestinationVillage() {
+    let destinationVillage = '';
+
+    const selectors = [
+        '#content_value table table tr:eq(3) td:eq(1)',
+        '#content_value table table tr:nth-child(4) td:nth-child(2)',
+        '#content_value .vis tbody tr:eq(3) td:eq(1)',
+        '#content_value table table td:eq(2)',
+        '#content_value td:contains("|")'
+    ];
+
+    for (const selector of selectors) {
+        const element = jQuery(selector);
+        if (element.length) {
+            let text = element.text().trim();
+            const match = text.match(/(\d+)\|(\d+)/);
+            if (match) {
+                destinationVillage = match[0];
+                console.debug(`Found destination: ${destinationVillage}`);
+                break;
+            }
+        }
     }
+
+    if (!destinationVillage) {
+        const pageText = jQuery('#content_value').html();
+        const coordMatch = pageText.match(/(\d+)\|(\d+)/);
+        if (coordMatch) {
+            destinationVillage = coordMatch[0];
+        }
+    }
+
+    return destinationVillage;
 }
 
-// Calculate exact travel time in milliseconds
+// ============ API FUNCTIONS ============
+
+// Fetch world configuration from API
+async function fetchWorldConfigFromAPI() {
+    console.debug('Fetching world configuration from API...');
+
+    return new Promise((resolve, reject) => {
+        jQuery.ajax({
+            url: '/interface.php?func=get_config',
+            method: 'GET',
+            dataType: 'xml',
+            success: function(xml) {
+                const $xml = jQuery(xml);
+                const speed = parseFloat($xml.find('speed').text());
+                const unitSpeed = parseFloat($xml.find('unit_speed').text());
+
+                if (!isNaN(speed)) worldSpeed = speed;
+                if (!isNaN(unitSpeed)) unitSpeedModifier = unitSpeed;
+
+                console.debug(`API Config: Speed=${worldSpeed}x, Unit Speed=${unitSpeedModifier}x`);
+                console.debug(`Effective multiplier: ${worldSpeed * unitSpeedModifier}x`);
+
+                // Cache the config
+                localStorage.setItem(`${LS_PREFIX}_world_speed`, worldSpeed);
+                localStorage.setItem(`${LS_PREFIX}_unit_speed_modifier`, unitSpeedModifier);
+                localStorage.setItem(`${LS_PREFIX}_config_timestamp`, Date.now());
+
+                resolve({ worldSpeed, unitSpeedModifier });
+            },
+            error: function(xhr, status, error) {
+                console.error('Failed to fetch world config from API:', error);
+                // Fallback to cached values if available
+                const cachedSpeed = localStorage.getItem(`${LS_PREFIX}_world_speed`);
+                const cachedUnitSpeed = localStorage.getItem(`${LS_PREFIX}_unit_speed_modifier`);
+
+                if (cachedSpeed && cachedUnitSpeed) {
+                    worldSpeed = parseFloat(cachedSpeed);
+                    unitSpeedModifier = parseFloat(cachedUnitSpeed);
+                    console.debug(`Using cached config: Speed=${worldSpeed}x, Unit Speed=${unitSpeedModifier}x`);
+                    resolve({ worldSpeed, unitSpeedModifier });
+                } else {
+                    // Final fallback to default values
+                    worldSpeed = 1.0;
+                    unitSpeedModifier = 1.0;
+                    console.warn('Using default config: Speed=1x, Unit Speed=1x');
+                    resolve({ worldSpeed, unitSpeedModifier });
+                }
+            }
+        });
+    });
+}
+
+// Fetch unit info from API
+function fetchUnitInfoFromAPI() {
+    return new Promise((resolve, reject) => {
+        // Check cache first
+        const cached = localStorage.getItem(`${LS_PREFIX}_unit_info`);
+        const cachedTime = localStorage.getItem(`${LS_PREFIX}_last_updated`);
+
+        if (cached && cachedTime && (Date.now() - parseInt(cachedTime) < TIME_INTERVAL)) {
+            unitInfo = JSON.parse(cached);
+            console.debug('Unit info loaded from cache');
+            resolve();
+            return;
+        }
+
+        jQuery.ajax({
+            url: '/interface.php?func=get_unit_info',
+            method: 'GET',
+            success: function(response) {
+                unitInfo = xml2json(jQuery(response));
+                localStorage.setItem(`${LS_PREFIX}_unit_info`, JSON.stringify(unitInfo));
+                localStorage.setItem(`${LS_PREFIX}_last_updated`, Date.now());
+                console.debug('Unit info fetched from API');
+
+                // Log unit speeds for debugging
+                if (unitInfo && unitInfo.config) {
+                    console.debug('=== Unit Speeds (minutes per field at speed 1) ===');
+                    for (const [unit, data] of Object.entries(unitInfo.config)) {
+                        console.debug(`  ${unit}: ${data.speed} min/field`);
+                    }
+                }
+                resolve();
+            },
+            error: function(error) {
+                console.error('Failed to fetch unit info:', error);
+                reject(error);
+            }
+        });
+    });
+}
+
+// XML to JSON converter
+function xml2json($xml) {
+    var data = {};
+    $.each($xml.children(), function (i) {
+        var $this = $(this);
+        if ($this.children().length > 0) {
+            data[$this.prop('tagName')] = xml2json($this);
+        } else {
+            data[$this.prop('tagName')] = $.trim($this.text());
+        }
+    });
+    return data;
+}
+
+// ============ TIME CALCULATION FUNCTIONS ============
+
+// Calculate travel time in milliseconds using API world settings
 function getTravelTimeMs(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
+        console.error(`No unit info for: ${unitType}`);
         return null;
     }
 
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
-    // Formula: travel time = distance × baseSpeed / (worldSpeed × unitSpeed)
+
+    // Formula: Travel time (minutes) = distance × baseSpeed / (worldSpeed × unitSpeed)
     const travelTimeMinutes = (distance * baseSpeedMinutes) / (worldSpeed * unitSpeedModifier);
-    return travelTimeMinutes * 60 * 1000;
+    const travelTimeMs = travelTimeMinutes * 60 * 1000;
+
+    return travelTimeMs;
 }
 
 // Calculate send time
@@ -163,482 +348,589 @@ function formatTravelTime(unitType, distance) {
     return result.trim();
 }
 
-// Calculate distance between villages
-function calculateDistance(from, to) {
-    if (!from || !to) return 0;
-    const [x1, y1] = from.split('|').map(Number);
-    const [x2, y2] = to.split('|').map(Number);
-    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return 0;
-    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
-}
+// ============ DATA FETCHING FUNCTIONS ============
 
-// Get server time
-function getServerTime() {
-    const timeStr = jQuery('#serverTime').text();
-    const dateStr = jQuery('#serverDate').text();
-    const [day, month, year] = dateStr.split('/');
-    return new Date(`${year}-${month}-${day} ${timeStr}`);
-}
-
-// Format date/time for display
-function formatDateTime(date) {
-    if (!date || isNaN(date.getTime())) return '';
-    const d = new Date(date);
-    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
-}
-
-// Parse landing time from input
-function parseLandingTime(input) {
-    const [datePart, timePart] = input.split(' ');
-    const [day, month, year] = datePart.split('/');
-    return new Date(`${year}-${month}-${day} ${timePart}`);
-}
-
-// Get destination village coordinates
-function getDestinationVillage() {
-    // Try multiple selectors to find coordinates
-    const selectors = [
-        '#content_value table table tr:eq(3) td:eq(1)',
-        '#content_value table table tr:nth-child(4) td:nth-child(2)',
-        '#content_value td:contains("|")'
-    ];
-
-    for (const selector of selectors) {
-        const el = jQuery(selector);
-        if (el.length) {
-            const match = el.text().match(/(\d+)\|(\d+)/);
-            if (match) return match[0];
-        }
-    }
-
-    // Fallback: search entire page
-    const match = jQuery('#content_value').html().match(/(\d+)\|(\d+)/);
-    return match ? match[0] : '';
-}
-
-// Fetch unit info
-function fetchUnitInfo() {
-    return new Promise((resolve) => {
-        const cached = localStorage.getItem(`${LS_PREFIX}_unit_info`);
-        const cachedTime = localStorage.getItem(`${LS_PREFIX}_last_updated`);
-
-        if (cached && cachedTime && (Date.now() - parseInt(cachedTime) < TIME_INTERVAL)) {
-            unitInfo = JSON.parse(cached);
-            console.debug('Unit info loaded from cache');
-            resolve();
-            return;
-        }
-
-        jQuery.ajax({
-            url: '/interface.php?func=get_unit_info',
-            success: function(response) {
-                unitInfo = xml2json(jQuery(response));
-                localStorage.setItem(`${LS_PREFIX}_unit_info`, JSON.stringify(unitInfo));
-                localStorage.setItem(`${LS_PREFIX}_last_updated`, Date.now());
-                console.debug('Unit info fetched from API');
-                resolve();
-            },
-            error: function() {
-                console.error('Failed to fetch unit info');
-                resolve();
-            }
-        });
-    });
-}
-
-// XML to JSON converter
-function xml2json($xml) {
-    const data = {};
-    $xml.children().each(function() {
-        const $this = jQuery(this);
-        const tag = $this.prop('tagName');
-        if ($this.children().length > 0) {
-            data[tag] = xml2json($this);
-        } else {
-            data[tag] = $this.text().trim();
-        }
-    });
-    return data;
-}
-
-// Fetch villages by group
-async function fetchVillages(groupId) {
+// Fetch player villages by group
+async function fetchAllPlayerVillagesByGroup(groupId) {
     try {
-        const res = await jQuery.post({
-            url: game_data.link_base_pure + 'groups&ajax=load_villages_from_group',
-            data: { group_id: groupId }
+        const url = game_data.link_base_pure + 'groups&ajax=load_villages_from_group';
+        const response = await jQuery.post({
+            url: url,
+            data: { group_id: groupId },
         });
-        const html = jQuery.parseHTML(res.html);
-        const rows = jQuery(html).find('#group_table > tbody > tr').not(':eq(0)');
-        const villages = [];
-        rows.each(function() {
-            const id = jQuery(this).find('td:eq(0) a').attr('data-village-id') ||
+
+        const parser = new DOMParser();
+        const htmlDoc = parser.parseFromString(response.html, 'text/html');
+        const tableRows = jQuery(htmlDoc).find('#group_table > tbody > tr').not(':eq(0)');
+        let villagesList = [];
+
+        tableRows.each(function () {
+            const villageId = jQuery(this).find('td:eq(0) a').attr('data-village-id') ||
                 jQuery(this).find('td:eq(0) a').attr('href').match(/\d+/)[0];
-            villages.push({
-                id: parseInt(id),
-                name: jQuery(this).find('td:eq(0)').text().trim(),
-                coords: jQuery(this).find('td:eq(1)').text().trim()
+            const villageName = jQuery(this).find('td:eq(0)').text().trim();
+            const villageCoords = jQuery(this).find('td:eq(1)').text().trim();
+
+            villagesList.push({
+                id: parseInt(villageId),
+                name: villageName,
+                coords: villageCoords,
             });
         });
-        return villages;
-    } catch (e) {
-        console.error('Error fetching villages:', e);
-        return [];
-    }
-}
 
-// Fetch troop counts
-async function fetchTroops(groupId) {
-    try {
-        const res = await jQuery.get(game_data.link_base_pure + `overview_villages&mode=combined&group=${groupId}&`);
-        const html = jQuery.parseHTML(res);
-        const headers = [];
-        jQuery(html).find('#combined_table tr:eq(0) th').each(function() {
-            const img = jQuery(this).find('img').attr('src');
-            if (img) {
-                let name = img.split('/').pop().replace('.webp', '');
-                if (name.startsWith('unit_')) name = name.replace('unit_', '');
-                headers.push(name);
-            } else {
-                headers.push(null);
-            }
-        });
-
-        const troops = [];
-        jQuery(html).find('#combined_table tr.nowrap').each(function() {
-            const row = {};
-            headers.forEach((header, idx) => {
-                if (header && header !== 'building' && header !== 'unit') {
-                    const villageId = jQuery(this).find('td:eq(1) span.quickedit-vn').attr('data-id');
-                    row.villageId = parseInt(villageId);
-                    row[header] = parseInt(jQuery(this).find(`td:eq(${idx})`).text()) || 0;
-                }
-            });
-            if (row.villageId) troops.push(row);
-        });
-        return troops;
-    } catch (e) {
-        console.error('Error fetching troops:', e);
+        return villagesList;
+    } catch (error) {
+        console.error('Error fetching villages:', error);
+        UI.ErrorMessage(tt('Villages list could not be fetched!'));
         return [];
     }
 }
 
 // Fetch village groups
-async function fetchGroups() {
+async function fetchVillageGroups() {
     try {
         return await jQuery.get(game_data.link_base_pure + 'groups&mode=overview&ajax=load_group_menu');
-    } catch (e) {
-        console.error('Error fetching groups:', e);
+    } catch (error) {
+        UI.ErrorMessage(tt('Error fetching village groups!'));
+        console.error('Error fetching groups:', error);
         return { result: {} };
     }
 }
 
-// Update display for a village
-function updateVillageDisplay(row, unitType, distance) {
-    const cell = row.find('td:eq(1)');
+// Fetch troop counts
+async function fetchTroopsForCurrentGroup() {
+    const groupId = localStorage.getItem(`${LS_PREFIX}_chosen_group`) || 0;
+    try {
+        const response = await jQuery.get(game_data.link_base_pure + `overview_villages&mode=combined&group=${groupId}&`);
+        const htmlDoc = jQuery.parseHTML(response);
+        const combinedTableRows = jQuery(htmlDoc).find('#combined_table tr.nowrap');
+        const combinedTableHead = jQuery(htmlDoc).find('#combined_table tr:eq(0) th');
+        const homeTroops = [];
+        const combinedTableHeader = [];
+
+        jQuery(combinedTableHead).each(function () {
+            const thImage = jQuery(this).find('img').attr('src');
+            if (thImage) {
+                let thImageFilename = thImage.split('/').pop();
+                thImageFilename = thImageFilename.replace('.webp', '');
+                combinedTableHeader.push(thImageFilename);
+            } else {
+                combinedTableHeader.push(null);
+            }
+        });
+
+        combinedTableRows.each(function () {
+            let rowTroops = {};
+            combinedTableHeader.forEach((tableHeader, index) => {
+                if (tableHeader && tableHeader.includes('unit_')) {
+                    const villageId = jQuery(this).find('td:eq(1) span.quickedit-vn').attr('data-id');
+                    const unitType = tableHeader.replace('unit_', '');
+                    if (villageId) {
+                        rowTroops = {
+                            ...rowTroops,
+                            villageId: parseInt(villageId),
+                            [unitType]: parseInt(jQuery(this).find(`td:eq(${index})`).text()) || 0,
+                        };
+                    }
+                }
+            });
+            if (rowTroops.villageId) homeTroops.push(rowTroops);
+        });
+
+        return homeTroops;
+    } catch (error) {
+        console.error('Error fetching troops:', error);
+        return [];
+    }
+}
+
+// Get continent by coordinates
+function getContinentByCoord(coord) {
+    if (!coord) return '';
+    const coordParts = coord.split('|');
+    return coordParts[1].charAt(0) + coordParts[0].charAt(0);
+}
+
+// ============ UI RENDERING FUNCTIONS ============
+
+// Render villages table
+function renderVillagesTable(villages) {
+    if (!villages || villages.length === 0) {
+        return `<p><b>${tt('Villages list could not be fetched!')}</b></p>`;
+    }
+
+    let villagesTable = `
+    <table id="raAttackPlannerTable" class="ra-table" width="100%">
+        <thead>
+            <tr>
+                <th class="ra-text-left" width="25%">${tt('Village')} (${villages.length})</th>
+                <th width="15%">${tt('Send Time')}</th>
+                <th width="5%">${tt('Prio.')}</th>
+                <th><img src="/graphic/unit/unit_spear.webp" data-set-unit="spear"></th>
+                <th><img src="/graphic/unit/unit_sword.webp" data-set-unit="sword"></th>
+                <th><img src="/graphic/unit/unit_axe.webp" data-set-unit="axe"></th>
+                <th class="archer-world"><img src="/graphic/unit/unit_archer.webp" data-set-unit="archer"></th>
+                <th><img src="/graphic/unit/unit_spy.webp" data-set-unit="spy"></th>
+                <th><img src="/graphic/unit/unit_light.webp" data-set-unit="light"></th>
+                <th class="archer-world"><img src="/graphic/unit/unit_marcher.webp" data-set-unit="marcher"></th>
+                <th><img src="/graphic/unit/unit_heavy.webp" data-set-unit="heavy"></th>
+                <th><img src="/graphic/unit/unit_ram.webp" data-set-unit="ram"></th>
+                <th><img src="/graphic/unit/unit_catapult.webp" data-set-unit="catapult"></th>
+                <th class="paladin-world"><img src="/graphic/unit/unit_knight.webp" data-set-unit="knight"></th>
+                <th><img src="/graphic/unit/unit_snob.webp" data-set-unit="snob"></th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+
+    const villageCombinations = [];
+    villages.forEach((village) => {
+        const troops = troopCounts.find(t => t.villageId === village.id) || {};
+        villageCombinations.push({
+            ...village,
+            spear: troops.spear || 0,
+            sword: troops.sword || 0,
+            axe: troops.axe || 0,
+            archer: troops.archer || 0,
+            spy: troops.spy || 0,
+            light: troops.light || 0,
+            marcher: troops.marcher || 0,
+            heavy: troops.heavy || 0,
+            ram: troops.ram || 0,
+            catapult: troops.catapult || 0,
+            knight: troops.knight || 0,
+            snob: troops.snob || 0,
+        });
+    });
+
+    villageCombinations.forEach((village) => {
+        const continent = getContinentByCoord(village.coords);
+        const link = game_data.link_base_pure + `info_village&id=${village.id}`;
+
+        villagesTable += `
+            <tr>
+                <td class="ra-text-left">
+                    <a href="${link}" target="_blank" rel="noopener noreferrer">
+                        ${village.name} (${village.coords}) K${continent}
+                    </a>
+                </td>
+                <td data-original-distance="${village.distance.toFixed(2)}">${village.distance.toFixed(2)}</td>
+                <td><span class="icon header favorite_add"></span></td>
+                <td><img data-unit-type="spear" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_spear.webp"><span>${formatAsNumber(village.spear)}</span></td>
+                <td><img data-unit-type="sword" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_sword.webp"><span>${formatAsNumber(village.sword)}</span></td>
+                <td><img data-unit-type="axe" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_axe.webp"><span>${formatAsNumber(village.axe)}</span></td>
+                <td class="archer-world"><img data-unit-type="archer" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_archer.webp"><span>${formatAsNumber(village.archer)}</span></td>
+                <td><img data-unit-type="spy" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_spy.webp"><span>${formatAsNumber(village.spy)}</span></td>
+                <td><img data-unit-type="light" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_light.webp"><span>${formatAsNumber(village.light)}</span></td>
+                <td class="archer-world"><img data-unit-type="marcher" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_marcher.webp"><span>${formatAsNumber(village.marcher)}</span></td>
+                <td><img data-unit-type="heavy" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_heavy.webp"><span>${formatAsNumber(village.heavy)}</span></td>
+                <td><img data-unit-type="ram" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_ram.webp"><span>${formatAsNumber(village.ram)}</span></td>
+                <td><img data-unit-type="catapult" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_catapult.webp"><span>${formatAsNumber(village.catapult)}</span></td>
+                <td class="paladin-world"><img data-unit-type="knight" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_knight.webp"><span>${formatAsNumber(village.knight)}</span></td>
+                <td><img data-unit-type="snob" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_snob.webp"><span>${formatAsNumber(village.snob)}</span></td>
+            </tr>
+        `;
+    });
+
+    villagesTable += `</tbody></table>`;
+    return villagesTable;
+}
+
+// Render groups filter
+function renderGroupsFilter(groups) {
+    const groupId = localStorage.getItem(`${LS_PREFIX}_chosen_group`) || 0;
+    let groupsFilter = `<select name="ra_groups_filter" id="raGroupsFilter">`;
+
+    if (groups && groups.result) {
+        for (const [_, group] of Object.entries(groups.result)) {
+            const { group_id, name } = group;
+            const isSelected = parseInt(group_id) === parseInt(groupId) ? 'selected' : '';
+            if (name !== undefined) {
+                groupsFilter += `<option value="${group_id}" ${isSelected}>${name}</option>`;
+            }
+        }
+    }
+
+    groupsFilter += `</select>`;
+    return groupsFilter;
+}
+
+// ============ UI UPDATE FUNCTIONS ============
+
+// Update travel time display for a village
+function updateTravelTimeForVillage(villageRow, unitType, distance) {
+    const distanceCell = villageRow.find('td:eq(1)');
 
     if (!unitType || !currentLandingTime) {
-        const orig = cell.attr('data-original-distance');
-        cell.html(orig || distance.toFixed(2));
+        const originalDistance = distanceCell.attr('data-original-distance');
+        distanceCell.html(originalDistance || distance.toFixed(2));
         return;
     }
 
     const sendTime = getSendTime(unitType, distance, currentLandingTime);
     const serverTime = getServerTime();
-    const travelFormatted = formatTravelTime(unitType, distance);
+    const travelTimeFormatted = formatTravelTime(unitType, distance);
 
     if (sendTime && sendTime >= serverTime) {
-        cell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelFormatted}">🕒 ${formatDateTime(sendTime)}</span>`);
+        const formattedSendTime = formatDateTime(sendTime);
+        distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">🕒 ${formattedSendTime}</span>`);
     } else if (sendTime && sendTime < serverTime) {
-        cell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelFormatted}">⚠️ ${tt('Send Time')} Άκυρο Ψηλέ!</span>`);
+        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">⚠️ ${tt('Send Time')} passed</span>`);
     } else {
-        cell.html(distance.toFixed(2));
+        distanceCell.html(distance.toFixed(2));
     }
 }
 
-// Update all displays
-function updateAllDisplays() {
+// Update all travel times
+function updateAllTravelTimes() {
     if (!currentLandingTime) {
-        const val = jQuery('#raLandingTime').val();
-        if (val) currentLandingTime = parseLandingTime(val);
-        else return;
+        const landingTimeVal = jQuery('#raLandingTime').val();
+        if (landingTimeVal && landingTimeVal.trim() !== '') {
+            currentLandingTime = getLandingTime(landingTimeVal.trim());
+        } else {
+            return;
+        }
     }
 
     jQuery('#raAttackPlannerTable tbody tr').each(function() {
         const row = jQuery(this);
-        const selected = row.find('img.ra-selected-unit').first();
-        const cell = row.find('td:eq(1)');
-        let dist = parseFloat(cell.attr('data-original-distance'));
-        if (isNaN(dist)) dist = parseFloat(cell.text());
+        const selectedUnitImg = row.find('img.ra-selected-unit').first();
+        const distanceCell = row.find('td:eq(1)');
+        let distance = parseFloat(distanceCell.attr('data-original-distance'));
 
-        if (selected.length && !isNaN(dist)) {
-            updateVillageDisplay(row, selected.attr('data-unit-type'), dist);
+        if (isNaN(distance)) {
+            distance = parseFloat(distanceCell.text());
+        }
+
+        if (selectedUnitImg.length && !isNaN(distance)) {
+            const unitType = selectedUnitImg.attr('data-unit-type');
+            updateTravelTimeForVillage(row, unitType, distance);
         }
     });
 }
 
-// Initialize script
-async function init() {
-    console.debug('=== Single Village Planner v2.2.4 ===');
+// ============ EVENT HANDLERS ============
 
-    getWorldSettings();
-    await fetchUnitInfo();
-
-    const groups = await fetchGroups();
-    troopCounts = await fetchTroops(GROUP_ID);
-    let villages = await fetchVillages(GROUP_ID);
-
-    currentDestinationVillage = getDestinationVillage();
-    villages = villages.map(v => ({
-        ...v,
-        distance: calculateDistance(v.coords, currentDestinationVillage)
-    })).sort((a, b) => a.distance - b.distance);
-
-    // Build table HTML
-    let tableHtml = `
-    <table id="raAttackPlannerTable" class="ra-table" width="100%">
-        <thead><tr>
-            <th class="ra-text-left" width="25%">${tt('Village')} (${villages.length})</th>
-            <th width="20%">${tt('Send Time')}</th>
-            <th width="5%">${tt('Prio.')}</th>
-            <th><img src="/graphic/unit/unit_spear.webp" data-set-unit="spear"></th>
-            <th><img src="/graphic/unit/unit_sword.webp" data-set-unit="sword"></th>
-            <th><img src="/graphic/unit/unit_axe.webp" data-set-unit="axe"></th>
-            <th><img src="/graphic/unit/unit_spy.webp" data-set-unit="spy"></th>
-            <th><img src="/graphic/unit/unit_light.webp" data-set-unit="light"></th>
-            <th><img src="/graphic/unit/unit_heavy.webp" data-set-unit="heavy"></th>
-            <th><img src="/graphic/unit/unit_ram.webp" data-set-unit="ram"></th>
-            <th><img src="/graphic/unit/unit_catapult.webp" data-set-unit="catapult"></th>
-            <th><img src="/graphic/unit/unit_snob.webp" data-set-unit="snob"></th>
-        </tr></thead>
-        <tbody>
-    `;
-
-    // Match villages with troops
-    const combined = [];
-    villages.forEach(v => {
-        const troops = troopCounts.find(t => t.villageId === v.id) || {};
-        combined.push({ ...v, ...troops });
-    });
-
-    combined.forEach(v => {
-        const continent = v.coords ? (v.coords.split('|')[1].charAt(0) + v.coords.split('|')[0].charAt(0)) : '';
-        tableHtml += `
-            <tr>
-                <td class="ra-text-left"><a href="${game_data.link_base_pure}info_village&id=${v.id}" target="_blank">${v.name} (${v.coords}) K${continent}</a></td>
-                <td data-original-distance="${v.distance.toFixed(2)}">${v.distance.toFixed(2)}</td>
-                <td><span class="icon header favorite_add"></span></td>
-                <td><img data-unit-type="spear" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_spear.webp"><span>${(v.spear || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="sword" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_sword.webp"><span>${(v.sword || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="axe" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_axe.webp"><span>${(v.axe || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="spy" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_spy.webp"><span>${(v.spy || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="light" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_light.webp"><span>${(v.light || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="heavy" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_heavy.webp"><span>${(v.heavy || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="ram" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_ram.webp"><span>${(v.ram || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="catapult" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_catapult.webp"><span>${(v.catapult || 0).toLocaleString('de')}</span></td>
-                <td><img data-unit-type="snob" data-village-id="${v.id}" data-village-coords="${v.coords}" src="/graphic/unit/unit_snob.webp"><span>${(v.snob || 0).toLocaleString('de')}</span></td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `</tbody></table>`;
-
-    // Groups filter
-    let groupsHtml = `<select id="raGroupsFilter">`;
-    if (groups.result) {
-        for (const [id, group] of Object.entries(groups.result)) {
-            groupsHtml += `<option value="${group.group_id}" ${parseInt(group.group_id) === GROUP_ID ? 'selected' : ''}>${group.name}</option>`;
-        }
-    }
-    groupsHtml += `</select>`;
-
-    const defaultTime = formatDateTime(new Date(Date.now() + 86400000));
-
-    const fullHtml = `
-        <div id="raSingleVillagePlanner" style="margin:10px; padding:10px; border:1px solid #603000; background:#f4e4bc;">
-            <h2>${tt('Single Village Planner')}</h2>
-            <div class="ra-mb15">
-                <div style="display: grid; grid-template-columns: 1fr 150px; gap: 20px;">
-                    <div>
-                        <label>${tt('Landing Time')} (dd/mm/yyyy HH:mm:ss)</label>
-                        <input id="raLandingTime" type="text" value="${defaultTime}" style="width:100%;">
-                        <small>${tt('Click on a unit to see send time')}</small>
-                    </div>
-                    <div>
-                        <label>${tt('Group')}</label>
-                        ${groupsHtml}
-                    </div>
-                </div>
-            </div>
-            ${tableHtml}
-            <div class="ra-mb15" style="margin-top:15px;">
-                <button id="calculateLaunchTimes" class="btn">${tt('Calculate Launch Times')}</button>
-                <button id="resetAll" class="btn">Reset</button>
-                <button id="resetGroupBtn" class="btn">${tt('Reset Chosen Group')}</button>
-            </div>
-            <div id="raVillagePlanner" style="display:none;">
-                <textarea id="raExportPlanBBCode" rows="5" style="width:100%;"></textarea>
-                <textarea id="raExportPlanCode" rows="5" style="width:100%;"></textarea>
-            </div>
-            <small>${tt(scriptData.name)} ${scriptData.version}</small>
-        </div>
-        <style>
-            .ra-table td img { cursor: pointer; border: 2px solid transparent; }
-            .ra-table td img.ra-selected-unit { border-color: red; }
-            .ra-table td .icon { cursor: pointer; filter: grayscale(100%); }
-            .ra-table td .icon.ra-priority-village { filter: none; }
-        </style>
-    `;
-
-    jQuery('#contentContainer').prepend(fullHtml);
-
-    // Set current landing time
-    currentLandingTime = parseLandingTime(defaultTime);
-
-    // Attach event handlers
-    attachEvents();
-
-    // Initial update
-    setTimeout(updateAllDisplays, 100);
-
-    jQuery('html,body').animate({ scrollTop: jQuery('#raSingleVillagePlanner').offset().top - 8 }, 'slow');
-}
-
-// Attach all event handlers
-function attachEvents() {
-    // Unit selection
+// Unit selection handler
+function attachUnitSelectionHandler() {
     jQuery('.ra-table td img').on('click', function() {
         const row = jQuery(this).closest('tr');
         const wasSelected = jQuery(this).hasClass('ra-selected-unit');
-        const cell = row.find('td:eq(1)');
-        let dist = parseFloat(cell.attr('data-original-distance'));
-        if (isNaN(dist)) dist = parseFloat(cell.text());
+        const distanceCell = row.find('td:eq(1)');
+        let distance = parseFloat(distanceCell.attr('data-original-distance'));
+
+        if (isNaN(distance)) {
+            distance = parseFloat(distanceCell.text());
+        }
 
         if (!wasSelected) {
             row.find('img').not(this).removeClass('ra-selected-unit');
             jQuery(this).addClass('ra-selected-unit');
-            if (!isNaN(dist) && currentLandingTime) {
-                updateVillageDisplay(row, jQuery(this).attr('data-unit-type'), dist);
+
+            const unitType = jQuery(this).attr('data-unit-type');
+
+            if (!isNaN(distance) && currentLandingTime) {
+                updateTravelTimeForVillage(row, unitType, distance);
             }
         } else {
             jQuery(this).removeClass('ra-selected-unit');
-            cell.html(dist.toFixed(2));
+            const originalDistance = distanceCell.attr('data-original-distance');
+            distanceCell.html(parseFloat(originalDistance).toFixed(2));
         }
 
-        if (row.find('img.ra-selected-unit').length) {
+        const isAnyUnitSelected = row.find('img.ra-selected-unit').length > 0;
+        if (isAnyUnitSelected) {
             row.addClass('ra-selected-village');
         } else {
-            row.removeClass('ra-selected-village');
             row.find('td .icon').removeClass('ra-priority-village');
+            row.removeClass('ra-selected-village');
         }
     });
+}
 
-    // Priority selection
-    jQuery('.ra-table td .icon').on('click', function() {
-        if (jQuery(this).closest('tr').find('.ra-selected-unit').length) {
+// Priority selection handler
+function attachPriorityHandler() {
+    jQuery('#raAttackPlannerTable tbody td .icon').on('click', function() {
+        const isUnitSelectedForVillage = jQuery(this).closest('tr').find('.ra-selected-unit').length > 0;
+        if (isUnitSelectedForVillage) {
             jQuery(this).toggleClass('ra-priority-village');
         } else {
             UI.ErrorMessage(tt('This village has no unit selected!'));
         }
     });
+}
 
-    // Landing time change
+// Landing time change handler
+function attachLandingTimeHandler() {
     jQuery('#raLandingTime').on('change keyup', function() {
-        const val = jQuery(this).val();
-        if (val) {
-            currentLandingTime = parseLandingTime(val);
-            updateAllDisplays();
-        }
-    });
-
-    // Group change
-    jQuery('#raGroupsFilter').on('change', function() {
-        localStorage.setItem(`${LS_PREFIX}_chosen_group`, jQuery(this).val());
-        location.reload();
-    });
-
-    // Reset group
-    jQuery('#resetGroupBtn').on('click', function() {
-        localStorage.removeItem(`${LS_PREFIX}_chosen_group`);
-        UI.SuccessMessage(tt('Chosen group was reset!'));
-        location.reload();
-    });
-
-    // Reset all
-    jQuery('#resetAll').on('click', function() {
-        location.reload();
-    });
-
-    // Calculate launch times
-    jQuery('#calculateLaunchTimes').on('click', function() {
-        const landingTimeStr = jQuery('#raLandingTime').val();
-        const dest = getDestinationVillage();
-        const units = [];
-
-        jQuery('#raAttackPlannerTable .ra-selected-unit').each(function() {
-            units.push({
-                id: parseInt(jQuery(this).attr('data-village-id')),
-                unit: jQuery(this).attr('data-unit-type'),
-                coords: jQuery(this).attr('data-village-coords'),
-                highPrio: jQuery(this).closest('tr').find('td .ra-priority-village').length > 0,
-                distance: calculateDistance(jQuery(this).attr('data-village-coords'), dest)
-            });
-        });
-
-        if (!units.length || !landingTimeStr) {
-            UI.ErrorMessage(tt('Missing user input!'));
-            return;
-        }
-
-        UI.SuccessMessage(tt('Launch times are being calculated ...'));
-        const landingTime = parseLandingTime(landingTimeStr);
-        const plans = [];
-
-        units.forEach(u => {
-            const sendTime = getSendTime(u.unit, u.distance, landingTime);
-            if (sendTime) {
-                plans.push({
-                    unit: u.unit,
-                    coords: u.coords,
-                    highPrio: u.highPrio,
-                    villageId: u.id,
-                    launchTimeFormatted: formatDateTime(sendTime)
-                });
-            }
-        });
-
-        plans.sort((a, b) => new Date(a.launchTimeFormatted) - new Date(b.launchTimeFormatted));
-
-        if (plans.length) {
-            let bbCode = `[size=12][b]${tt('Plan for:')}[/b] ${dest}\n[b]${tt('Landing Time:')}[/b] ${landingTimeStr}[/size]\n\n`;
-            bbCode += `[table][**]${tt('Unit')}[||]${tt('From')}[||]${tt('Priority')}[||]${tt('Launch Time')}[||]${tt('Command')}[/**]\n`;
-
-            let plainCode = `[size=12][b]${tt('Plan for:')}[/b] ${dest}\n[b]${tt('Landing Time:')}[/b] ${landingTimeStr}[/size]\n\n`;
-
-            plans.forEach(p => {
-                const [tx, ty] = dest.split('|');
-                const priority = p.highPrio ? tt('Early send') : '';
-                const rallyData = game_data.market !== 'uk' ? `&x=${tx}&y=${ty}` : '';
-                const sitterData = game_data.player.sitter > 0 ? `t=${game_data.player.id}` : '';
-                const url = `/game.php?${sitterData}&village=${p.villageId}&screen=place${rallyData}`;
-
-                bbCode += `[*][unit]${p.unit}[/unit][|] ${p.coords} [|][b][color=#ff0000]${priority}[/color][/b][|]${p.launchTimeFormatted}[|][url=${window.location.origin}${url}]${tt('Send')}[/url][|]\n`;
-                plainCode += `[unit]${p.unit}[/unit] ${p.coords} [b][color=#ff0000]${priority}[/color][/b] ${p.launchTimeFormatted} [url=${window.location.origin}${url}]${tt('Send')}[/url]\n`;
-            });
-
-            bbCode += `[/table]`;
-            jQuery('#raVillagePlanner').show();
-            jQuery('#raExportPlanBBCode').val(bbCode);
-            jQuery('#raExportPlanCode').val(plainCode);
-        } else {
-            UI.ErrorMessage(tt('No possible combinations found!'));
+        const landingTimeVal = jQuery(this).val().trim();
+        if (landingTimeVal) {
+            currentLandingTime = getLandingTime(landingTimeVal);
+            updateAllTravelTimes();
         }
     });
 }
 
+// Calculate launch times handler (EXPORT)
+function attachCalculateHandler() {
+    jQuery('#calculateLaunchTimes').on('click', function(e) {
+        e.preventDefault();
+
+        const landingTimeString = jQuery('#raLandingTime').val().trim();
+        let destinationVillage = getDestinationVillage();
+
+        let villagesUnitsToSend = [];
+
+        jQuery('#raAttackPlannerTable .ra-selected-unit').each(function() {
+            const id = parseInt(jQuery(this).attr('data-village-id'));
+            const unit = jQuery(this).attr('data-unit-type');
+            const coords = jQuery(this).attr('data-village-coords');
+            const isPrioVillage = jQuery(this).closest('tr').find('td .ra-priority-village').length > 0;
+            const distance = calculateDistance(coords, destinationVillage);
+
+            villagesUnitsToSend.push({
+                id: id,
+                unit: unit,
+                coords: coords,
+                highPrio: isPrioVillage,
+                distance: distance,
+            });
+        });
+
+        if (villagesUnitsToSend.length > 0 && landingTimeString !== '') {
+            UI.SuccessMessage(tt('Launch times are being calculated ...'));
+            const landingTime = getLandingTime(landingTimeString);
+            const plans = [];
+
+            villagesUnitsToSend.forEach((item) => {
+                const sendTime = getSendTime(item.unit, item.distance, landingTime);
+                if (sendTime && sendTime >= getServerTime()) {
+                    plans.push({
+                        unit: item.unit,
+                        coords: item.coords,
+                        highPrio: item.highPrio,
+                        villageId: item.id,
+                        launchTimeFormatted: formatDateTime(sendTime),
+                    });
+                }
+            });
+
+            plans.sort((a, b) => new Date(a.launchTimeFormatted) - new Date(b.launchTimeFormatted));
+
+            if (plans.length > 0) {
+                const [toX, toY] = destinationVillage.split('|');
+                const rallyPointData = game_data.market !== 'uk' ? `&x=${toX}&y=${toY}` : '';
+                const sitterData = game_data.player.sitter > 0 ? `t=${game_data.player.id}` : '';
+
+                let bbCode = `[size=12][b]${tt('Plan for:')}[/b] ${destinationVillage}\n[b]${tt('Landing Time:')}[/b] ${landingTimeString}[/size]\n\n`;
+                bbCode += `[table][**]${tt('Unit')}[||]${tt('From')}[||]${tt('Priority')}[||]${tt('Launch Time')}[||]${tt('Command')}[/**]\n`;
+
+                let plainCode = `[size=12][b]${tt('Plan for:')}[/b] ${destinationVillage}\n[b]${tt('Landing Time:')}[/b] ${landingTimeString}[/size]\n\n`;
+
+                plans.forEach((plan) => {
+                    const priority = plan.highPrio ? tt('Early send') : '';
+                    const commandUrl = `/game.php?${sitterData}&village=${plan.villageId}&screen=place${rallyPointData}`;
+
+                    bbCode += `[*][unit]${plan.unit}[/unit][|] ${plan.coords} [|][b][color=#ff0000]${priority}[/color][/b][|]${plan.launchTimeFormatted}[|][url=${window.location.origin}${commandUrl}]${tt('Send')}[/url][|]\n`;
+                    plainCode += `[unit]${plan.unit}[/unit] ${plan.coords} [b][color=#ff0000]${priority}[/color][/b] ${plan.launchTimeFormatted} [url=${window.location.origin}${commandUrl}]${tt('Send')}[/url]\n`;
+                });
+
+                bbCode += `[/table]`;
+                jQuery('#raVillagePlanner').show();
+                jQuery('#raExportPlanBBCode').val(bbCode);
+                jQuery('#raExportPlanCode').val(plainCode);
+            } else {
+                UI.ErrorMessage(tt('No possible combinations found!'));
+                jQuery('#raVillagePlanner').hide();
+            }
+        } else {
+            UI.ErrorMessage(tt('Missing user input!'));
+        }
+    });
+}
+
+// Reset handlers
+function attachResetHandlers() {
+    jQuery('#resetAll').on('click', function(e) {
+        e.preventDefault();
+        location.reload();
+    });
+
+    jQuery('#resetGroupBtn').on('click', function(e) {
+        e.preventDefault();
+        localStorage.removeItem(`${LS_PREFIX}_chosen_group`);
+        UI.SuccessMessage(tt('Chosen group was reset!'));
+        location.reload();
+    });
+}
+
+// Group filter handler
+function attachGroupFilterHandler() {
+    jQuery('#raGroupsFilter').on('change', function(e) {
+        e.preventDefault();
+        localStorage.setItem(`${LS_PREFIX}_chosen_group`, jQuery(this).val());
+        location.reload();
+    });
+}
+
+// Set all units handler
+function attachSetAllUnitsHandler() {
+    jQuery('#raAttackPlannerTable thead tr th img').on('click', function() {
+        const chosenUnit = jQuery(this).attr('data-set-unit');
+        if (chosenUnit) {
+            jQuery('#raAttackPlannerTable tbody tr').each(function() {
+                jQuery(this).find(`img[data-unit-type="${chosenUnit}"]`).trigger('click');
+            });
+        }
+    });
+}
+
+// Fill landing time from command handler
+function attachCommandClickHandler() {
+    jQuery('#commands_outgoings table tbody tr.command-row, #commands_incomings table tbody tr.command-row').on('click', function() {
+        const commandLandingTime = parseInt(jQuery(this).find('td:eq(2) span').attr('data-endtime')) * 1000;
+        const landingTimeDateTime = new Date(commandLandingTime);
+        const serverDateTime = getServerTime();
+        const localDateTime = new Date();
+        const diffTime = Math.abs(localDateTime - serverDateTime);
+        const newLandingTime = Math.ceil(Math.abs(landingTimeDateTime - diffTime));
+        const formattedNewLandingTime = formatDateTime(new Date(newLandingTime));
+
+        jQuery('#raLandingTime').val(formattedNewLandingTime);
+        currentLandingTime = getLandingTime(formattedNewLandingTime);
+        updateAllTravelTimes();
+        UI.SuccessMessage(tt('Landing time was updated!'));
+    });
+}
+
+// ============ INITIALIZATION ============
+
+async function init() {
+    console.debug('=== Single Village Planner v2.3.0 ===');
+    console.debug('Fetching world settings from API...');
+
+    // Show loading message
+    const loadingHtml = `
+        <div id="raSingleVillagePlanner" style="margin:10px; padding:10px; border:1px solid #603000; background:#f4e4bc; text-align:center;">
+            <h2>${tt('Single Village Planner')}</h2>
+            <p>Loading world configuration and unit data...</p>
+            <p><img src="/graphic/loading.gif" /></p>
+        </div>
+    `;
+    jQuery('#contentContainer').prepend(loadingHtml);
+
+    // Step 1: Fetch world config from API
+    await fetchWorldConfigFromAPI();
+
+    // Step 2: Fetch unit info from API
+    await fetchUnitInfoFromAPI();
+
+    // Step 3: Fetch villages and groups
+    const groups = await fetchVillageGroups();
+    troopCounts = await fetchTroopsForCurrentGroup();
+    let villages = await fetchAllPlayerVillagesByGroup(GROUP_ID);
+
+    currentDestinationVillage = getDestinationVillage();
+
+    villages = villages.map((item) => {
+        const distance = calculateDistance(item.coords, currentDestinationVillage);
+        return {
+            ...item,
+            distance: parseFloat(distance.toFixed(2)),
+        };
+    });
+
+    villages = villages.sort((a, b) => a.distance - b.distance);
+
+    const villagesTable = renderVillagesTable(villages);
+    const groupsFilter = renderGroupsFilter(groups);
+
+    const defaultTime = formatDateTime(new Date(Date.now() + 86400000));
+    currentLandingTime = getLandingTime(defaultTime);
+
+    const fullHtml = `
+        <div id="raSingleVillagePlanner" style="margin:10px; padding:10px; border:1px solid #603000; background:#f4e4bc;">
+            <h2>${tt('Single Village Planner')}</h2>
+            <div class="ra-mb15">
+                <div style="display: grid; grid-template-columns: 1fr 150px; gap: 20px; margin-bottom:15px;">
+                    <div>
+                        <label for="raLandingTime">${tt('Landing Time')} (dd/mm/yyyy HH:mm:ss)</label>
+                        <input id="raLandingTime" type="text" value="${defaultTime}" style="width:100%; padding:5px;">
+                        <small style="display:block; margin-top:5px;">${tt('Click on a unit to see send time')}</small>
+                    </div>
+                    <div>
+                        <label>${tt('Group')}</label>
+                        ${groupsFilter}
+                    </div>
+                </div>
+                ${villagesTable}
+                <div style="margin-top:15px;">
+                    <a href="javascript:void(0);" id="calculateLaunchTimes" class="btn" style="margin-right:10px;">${tt('Calculate Launch Times')}</a>
+                    <a href="javascript:void(0);" id="resetAll" class="btn" style="margin-right:10px;">${tt('Reset')}</a>
+                    <a href="javascript:void(0);" id="resetGroupBtn" class="btn">${tt('Reset Chosen Group')}</a>
+                </div>
+                <div id="raVillagePlanner" style="display:none; margin-top:15px;">
+                    <div style="margin-bottom:10px;">
+                        <label for="raExportPlanBBCode">${tt('Export Plan as BB Code')}</label>
+                        <textarea id="raExportPlanBBCode" rows="5" style="width:100%; resize:none;" readonly></textarea>
+                    </div>
+                    <div>
+                        <label for="raExportPlanCode">${tt('Export Plan without tables')}</label>
+                        <textarea id="raExportPlanCode" rows="5" style="width:100%; resize:none;" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+            <br>
+            <small>
+                <strong>${tt(scriptData.name)} ${scriptData.version}</strong> -
+                <a href="${scriptData.authorUrl}" target="_blank">${scriptData.author}</a> -
+                <a href="${scriptData.helpLink}" target="_blank">${tt('Help')}</a>
+            </small>
+        </div>
+        <style>
+            .ra-table td img { cursor: pointer; border: 2px solid transparent; padding: 2px; }
+            .ra-table td img.ra-selected-unit { border: 2px solid #ff0000; }
+            .ra-table td .icon { cursor: pointer; filter: grayscale(100%); }
+            .ra-table td .icon.ra-priority-village { filter: none; }
+            .ra-table tbody tr.ra-selected-village td { background-color: #ffe563; }
+            .ra-table tr:nth-of-type(2n+1) td { background-color: #fff5da; }
+            .ra-table td a { word-break: break-all; }
+            .ra-text-left { text-align: left !important; }
+        </style>
+    `;
+
+    // Replace loading message with actual content
+    jQuery('#raSingleVillagePlanner').replaceWith(fullHtml);
+
+    // Handle archer and paladin worlds
+    if (!game_data.units.includes('archer')) {
+        jQuery('.archer-world').hide();
+    }
+    if (!game_data.units.includes('knight')) {
+        jQuery('.paladin-world').hide();
+    }
+
+    // Attach all event handlers
+    attachUnitSelectionHandler();
+    attachPriorityHandler();
+    attachLandingTimeHandler();
+    attachCalculateHandler();
+    attachResetHandlers();
+    attachGroupFilterHandler();
+    attachSetAllUnitsHandler();
+    attachCommandClickHandler();
+
+    // Scroll to planner
+    jQuery('html,body').animate({ scrollTop: jQuery('#raSingleVillagePlanner').offset().top - 8 }, 'slow');
+
+    console.debug('=== Initialization Complete ===');
+    console.debug(`World Speed: ${worldSpeed}x, Unit Speed: ${unitSpeedModifier}x`);
+    console.debug(`Effective Multiplier: ${worldSpeed * unitSpeedModifier}x`);
+}
+
 // Start script
 (async function() {
-    if (window.location.href.includes('screen=info_village')) {
+    const gameScreen = new URLSearchParams(window.location.search).get('screen');
+    if (gameScreen === 'info_village') {
         await init();
     } else {
         UI.ErrorMessage(tt('This script can only be run on a single village screen!'));
