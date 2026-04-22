@@ -233,7 +233,7 @@ function xml2json($xml) {
 
 // ============ TIME CALCULATION FUNCTIONS - USING PROVEN METHOD ============
 
-// Calculate travel time - rounds to nearest second like the game
+// Calculate travel time - ROUND UP (ceil)
 function getExactTravelTimeMs(unitType, exactDistance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
@@ -243,25 +243,33 @@ function getExactTravelTimeMs(unitType, exactDistance) {
     const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
-    // Game rounds travel time to nearest second
-    const roundedSeconds = Math.round(travelTimeMs / 1000);
-    const roundedTravelMs = roundedSeconds * 1000;
+    // CEILING - round UP to nearest second
+    const ceiledSeconds = Math.ceil(travelTimeMs / 1000);
+    const ceiledTravelMs = ceiledSeconds * 1000;
 
-    return roundedTravelMs;
+    console.debug(`[${unitType}] Travel: ${travelTimeMs} ms → Ceiled: ${ceiledTravelMs} ms (${ceiledSeconds} seconds)`);
+
+    return ceiledTravelMs;
 }
 
-// Calculate send time - EXACT MATCH to game
+// Calculate send time - ROUND UP (ceil)
 function getExactSendTime(unitType, exactDistance, landingTime) {
     const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return null;
 
-    // Formula from proven script: sendTime = landingTime - travelTime + serverOffset
+    // Formula: sendTime = landingTime - travelTime + serverOffset
     const rawSendTime = landingTime.getTime() - travelMs + serverOffset;
 
-    // Round to nearest millisecond
-    const roundedSendTime = Math.round(rawSendTime);
+    // CEILING - round UP to nearest millisecond
+    const ceiledSendTime = Math.ceil(rawSendTime);
 
-    return new Date(roundedSendTime);
+    console.debug(`Landing: ${landingTime.getTime()} ms`);
+    console.debug(`Travel: ${travelMs} ms`);
+    console.debug(`Offset: ${serverOffset} ms`);
+    console.debug(`Raw: ${rawSendTime} ms`);
+    console.debug(`Ceiled: ${ceiledSendTime} ms`);
+
+    return new Date(ceiledSendTime);
 }
 
 // Format travel time for tooltip
@@ -284,11 +292,10 @@ function formatTravelTimeForDisplay(unitType, exactDistance) {
 
 // ============ HELPER FUNCTIONS ============
 
-// Format date - preserve milliseconds but display rounded seconds
+// Format date - NO ADDITIONAL ROUNDING
 function formatDateTime(date) {
     if (!date || isNaN(date.getTime())) return '';
 
-    // Use the date directly - don't re-round
     let d = new Date(date);
     let day = d.getDate().toString().padStart(2, '0');
     let month = (d.getMonth() + 1).toString().padStart(2, '0');
