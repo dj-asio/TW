@@ -235,35 +235,32 @@ function xml2json($xml) {
 // ============ TIME CALCULATION FUNCTIONS - USING PROVEN METHOD ============
 
 // Calculate travel time - ROUND UP (ceil)
-function getExactTravelTimeMs(unitType, exactDistance) {
+function getExactTravelTimeMs(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
     }
 
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
-    const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
+    const travelTimeMinutes = (distance * baseSpeedMinutes) / unitSpeedModifier;
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
-    // Round UP to nearest second
-    const ceiledSeconds = Math.ceil(travelTimeMs / 1000);
-    const ceiledTravelMs = ceiledSeconds * 1000;
+    // Round to nearest second
+    const roundedSeconds = Math.round(travelTimeMs / 1000);
+    const roundedTravelMs = roundedSeconds * 1000;
 
-    return ceiledTravelMs;
+    return roundedTravelMs;
 }
 
 // Calculate send time - MATCH PROVEN SCRIPT EXACTLY
-function getExactSendTime(unitType, exactDistance, landingTime) {
-    const travelMs = getExactTravelTimeMs(unitType, exactDistance);
+function getExactSendTime(unitType, distance, landingTime) {
+    const travelMs = getExactTravelTimeMs(unitType, distance);
     if (travelMs === null) return null;
 
-    // Formula from proven script
     const rawSendTime = landingTime.getTime() - travelMs + serverOffset;
 
-    // CRITICAL: Ceil to nearest second (proven script does this)
+    // Ceil to nearest second
     const ceiledSeconds = Math.ceil(rawSendTime / 1000);
     const finalTime = ceiledSeconds * 1000;
-
-    console.debug(`Raw send: ${rawSendTime} ms → Ceiled to second: ${finalTime} ms`);
 
     return new Date(finalTime);
 }
@@ -311,7 +308,7 @@ function getLandingTime(landingTime) {
     return new Date(landingTimeFormatted);
 }
 
-// Helper: Calculate distance between 2 villages - EXACT
+// Helper: Calculate distance - ROUND TO 3 DECIMALS (matching proven script)
 function calculateDistance(villageA, villageB) {
     if (!villageA || !villageB) return 0;
     const partsA = villageA.split('|');
@@ -324,9 +321,13 @@ function calculateDistance(villageA, villageB) {
     const y2 = parseInt(partsB[1]);
     if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return 0;
 
-    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
-}
+    const exactDistance = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
 
+    // CRITICAL: Round to 3 decimal places like the proven script
+    const roundedDistance = Math.round(exactDistance * 1000) / 1000;
+
+    return roundedDistance;
+}
 // Get destination village coordinates
 function getDestinationVillage() {
     let destinationVillage = '';
