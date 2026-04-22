@@ -121,28 +121,33 @@ function formatAsNumber(number) {
 // ============ SERVER TIME FUNCTIONS (from working script) ============
 
 function getServerDateTime() {
-    // Get the server time from the page
     const serverTimeElement = $('#serverTime').closest('p');
     const text = serverTimeElement.text();
     const matches = text.match(/\d+/g);
 
     if (matches && matches.length >= 6) {
         const [hour, min, sec, day, month, year] = matches;
-        // Create date using local timezone (matches proven script)
         return new Date(year, (month - 1), day, hour, min, sec).getTime();
     }
-
     return new Date().getTime();
 }
 
 function calculateServerOffset() {
     const serverDateTime = getServerDateTime();
     const localDateTime = new Date().getTime();
-    serverOffset = serverDateTime - localDateTime;
 
-    console.debug(`Server offset: ${serverOffset} ms (${serverOffset / 1000} seconds)`);
+    // PROVEN SCRIPT: Round to nearest hour (36e5 = 3,600,000 ms = 1 hour)
+    const diffMs = Math.abs(serverDateTime - localDateTime);
+    const roundedHours = Math.round(diffMs / 36e5);
+    const roundedOffsetMs = roundedHours * 3600 * 1000;
+
+    // Preserve the sign
+    serverOffset = (serverDateTime - localDateTime) > 0 ? roundedOffsetMs : -roundedOffsetMs;
+
     console.debug(`Server time: ${new Date(serverDateTime).toLocaleString()}`);
     console.debug(`Local time: ${new Date(localDateTime).toLocaleString()}`);
+    console.debug(`Raw offset: ${serverDateTime - localDateTime} ms`);
+    console.debug(`Rounded offset (nearest hour): ${serverOffset} ms (${serverOffset / 1000} seconds)`);
 }
 
 // ============ API FUNCTIONS ============
@@ -243,16 +248,14 @@ function getExactTravelTimeMs(unitType, exactDistance) {
     const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
-    // CEILING - round UP to nearest second
+    // Round UP to nearest second
     const ceiledSeconds = Math.ceil(travelTimeMs / 1000);
     const ceiledTravelMs = ceiledSeconds * 1000;
-
-    console.debug(`[${unitType}] Travel: ${travelTimeMs} ms → Ceiled: ${ceiledTravelMs} ms (${ceiledSeconds} seconds)`);
 
     return ceiledTravelMs;
 }
 
-// Calculate send time - ROUND UP (ceil)
+// Calculate send time
 function getExactSendTime(unitType, exactDistance, landingTime) {
     const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return null;
@@ -260,16 +263,10 @@ function getExactSendTime(unitType, exactDistance, landingTime) {
     // Formula: sendTime = landingTime - travelTime + serverOffset
     const rawSendTime = landingTime.getTime() - travelMs + serverOffset;
 
-    // CEILING - round UP to nearest millisecond
-    const ceiledSendTime = Math.ceil(rawSendTime);
+    // Round to nearest millisecond
+    const finalTime = Math.round(rawSendTime);
 
-    console.debug(`Landing: ${landingTime.getTime()} ms`);
-    console.debug(`Travel: ${travelMs} ms`);
-    console.debug(`Offset: ${serverOffset} ms`);
-    console.debug(`Raw: ${rawSendTime} ms`);
-    console.debug(`Ceiled: ${ceiledSendTime} ms`);
-
-    return new Date(ceiledSendTime);
+    return new Date(finalTime);
 }
 
 // Format travel time for tooltip
