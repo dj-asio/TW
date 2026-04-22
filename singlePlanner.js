@@ -1,14 +1,14 @@
 /*
  * Script Name: Single Village Planner
- * Version: v2.3.0
+ * Version: v2.3.3
  * Last Updated: 2025-08-15
  * Author: RedAlert
- * Mod: Asio - Always reads world settings from API
+ * Mod: Asio - Corrected: only unit_speed affects travel time
  */
 
 var scriptData = {
     name: 'Single Village Planner',
-    version: 'v2.3.0',
+    version: 'v2.3.3',
     author: 'RedAlert',
     authorUrl: 'https://twscripts.dev/',
     helpLink: 'https://forum.tribalwars.net/index.php?threads/single-village-planner.286667/',
@@ -25,8 +25,7 @@ var unitInfo = null;
 var troopCounts = [];
 var currentDestinationVillage = '';
 var currentLandingTime = null;
-var worldSpeed = 1.0;
-var unitSpeedModifier = 1.0;
+var unitSpeedModifier = 1.0;  // Only unit_speed matters for travel time
 
 // Translations
 var translations = {
@@ -202,7 +201,7 @@ function getDestinationVillage() {
 
 // ============ API FUNCTIONS ============
 
-// Fetch world configuration from API
+// Fetch world configuration from API (only unit_speed matters)
 async function fetchWorldConfigFromAPI() {
     console.debug('Fetching world configuration from API...');
 
@@ -213,39 +212,33 @@ async function fetchWorldConfigFromAPI() {
             dataType: 'xml',
             success: function(xml) {
                 const $xml = jQuery(xml);
-                const speed = parseFloat($xml.find('speed').text());
+                // NOTE: <speed> is for BUILDINGS, not used for troop travel
+                // Only <unit_speed> matters for troop movement
                 const unitSpeed = parseFloat($xml.find('unit_speed').text());
 
-                if (!isNaN(speed)) worldSpeed = speed;
                 if (!isNaN(unitSpeed)) unitSpeedModifier = unitSpeed;
 
-                console.debug(`API Config: Speed=${worldSpeed}x, Unit Speed=${unitSpeedModifier}x`);
-                console.debug(`Effective multiplier: ${worldSpeed * unitSpeedModifier}x`);
+                console.debug(`API Config: Unit Speed=${unitSpeedModifier}x (affects travel time)`);
+                console.debug(`  unit_speed=1 = normal, 0.5 = half speed (double time), 2 = double speed (half time)`);
 
                 // Cache the config
-                localStorage.setItem(`${LS_PREFIX}_world_speed`, worldSpeed);
                 localStorage.setItem(`${LS_PREFIX}_unit_speed_modifier`, unitSpeedModifier);
                 localStorage.setItem(`${LS_PREFIX}_config_timestamp`, Date.now());
 
-                resolve({ worldSpeed, unitSpeedModifier });
+                resolve({ unitSpeedModifier });
             },
             error: function(xhr, status, error) {
                 console.error('Failed to fetch world config from API:', error);
-                // Fallback to cached values if available
-                const cachedSpeed = localStorage.getItem(`${LS_PREFIX}_world_speed`);
                 const cachedUnitSpeed = localStorage.getItem(`${LS_PREFIX}_unit_speed_modifier`);
 
-                if (cachedSpeed && cachedUnitSpeed) {
-                    worldSpeed = parseFloat(cachedSpeed);
+                if (cachedUnitSpeed) {
                     unitSpeedModifier = parseFloat(cachedUnitSpeed);
-                    console.debug(`Using cached config: Speed=${worldSpeed}x, Unit Speed=${unitSpeedModifier}x`);
-                    resolve({ worldSpeed, unitSpeedModifier });
+                    console.debug(`Using cached config: Unit Speed=${unitSpeedModifier}x`);
+                    resolve({ unitSpeedModifier });
                 } else {
-                    // Final fallback to default values
-                    worldSpeed = 1.0;
                     unitSpeedModifier = 1.0;
-                    console.warn('Using default config: Speed=1x, Unit Speed=1x');
-                    resolve({ worldSpeed, unitSpeedModifier });
+                    console.warn('Using default: Unit Speed=1x');
+                    resolve({ unitSpeedModifier });
                 }
             }
         });
@@ -255,7 +248,6 @@ async function fetchWorldConfigFromAPI() {
 // Fetch unit info from API
 function fetchUnitInfoFromAPI() {
     return new Promise((resolve, reject) => {
-        // Check cache first
         const cached = localStorage.getItem(`${LS_PREFIX}_unit_info`);
         const cachedTime = localStorage.getItem(`${LS_PREFIX}_last_updated`);
 
@@ -277,7 +269,7 @@ function fetchUnitInfoFromAPI() {
 
                 // Log unit speeds for debugging
                 if (unitInfo && unitInfo.config) {
-                    console.debug('=== Unit Speeds (minutes per field at speed 1) ===');
+                    console.debug('=== Unit Speeds (minutes per field at unit_speed=1) ===');
                     for (const [unit, data] of Object.entries(unitInfo.config)) {
                         console.debug(`  ${unit}: ${data.speed} min/field`);
                     }
@@ -306,45 +298,60 @@ function xml2json($xml) {
     return data;
 }
 
-// ============ TIME CALCULATION FUNCTIONS ============
+// ============ TIME CALCULATION FUNCTIONS - CORRECTED ============
 
-// Calculate travel time in milliseconds using API world settings
-function getTravelTimeMs(unitType, distance) {
+// Calculate travel time in milliseconds - ONLY uses unit_speed
+function getExactTravelTimeMs(unitType, distance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         console.error(`No unit info for: ${unitType}`);
         return null;
     }
 
+    // Base speed from API (minutes per field at unit_speed=1)
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
 
-    // Formula: Travel time (minutes) = distance × baseSpeed / (worldSpeed × unitSpeed)
-    const travelTimeMinutes = (distance * baseSpeedMinutes) / (worldSpeed * unitSpeedModifier);
+    // Apply unit speed modifier from API
+    // Formula: Travel time = distance × baseSpeed / unitSpeed
+    // unitSpeed=1 = normal, 0.5 = half speed (double time), 2 = double speed (half time)
+    const travelTimeMinutes = (distance * baseSpeedMinutes) / unitSpeedModifier;
+
+    // Convert to milliseconds
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
+
+    console.debug(`[${unitType}] Distance: ${distance}, Base speed: ${baseSpeedMinutes} min/field`);
+    console.debug(`  Unit Speed: ${unitSpeedModifier}x → Travel: ${travelTimeMinutes} minutes (${travelTimeMs} ms)`);
 
     return travelTimeMs;
 }
 
 // Calculate send time
-function getSendTime(unitType, distance, landingTime) {
-    const travelMs = getTravelTimeMs(unitType, distance);
+function getExactSendTime(unitType, distance, landingTime) {
+    const travelMs = getExactTravelTimeMs(unitType, distance);
     if (travelMs === null) return null;
-    return new Date(landingTime.getTime() - travelMs);
+
+    const sendTime = new Date(landingTime.getTime() - travelMs);
+
+    console.debug(`Landing: ${formatDateTime(landingTime)}`);
+    console.debug(`Travel: ${travelMs} ms (${travelMs/1000} seconds)`);
+    console.debug(`Send: ${formatDateTime(sendTime)}`);
+
+    return sendTime;
 }
 
 // Format travel time for display
 function formatTravelTime(unitType, distance) {
-    const travelMs = getTravelTimeMs(unitType, distance);
+    const travelMs = getExactTravelTimeMs(unitType, distance);
     if (travelMs === null) return '';
 
-    const totalSec = Math.round(travelMs / 1000);
+    const totalSec = Math.floor(travelMs / 1000);
     const hours = Math.floor(totalSec / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = totalSec % 60;
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
 
     let result = '';
     if (hours > 0) result += `${hours}h `;
-    if (mins > 0 || hours > 0) result += `${mins}m `;
-    result += `${secs}s`;
+    if (minutes > 0 || hours > 0) result += `${minutes}m `;
+    result += `${seconds}s`;
     return result.trim();
 }
 
@@ -556,8 +563,8 @@ function renderGroupsFilter(groups) {
 
 // ============ UI UPDATE FUNCTIONS ============
 
-// Update travel time display for a village
-function updateTravelTimeForVillage(villageRow, unitType, distance) {
+// Update send time display for a village
+function updateSendTimeForVillage(villageRow, unitType, distance) {
     const distanceCell = villageRow.find('td:eq(1)');
 
     if (!unitType || !currentLandingTime) {
@@ -566,7 +573,7 @@ function updateTravelTimeForVillage(villageRow, unitType, distance) {
         return;
     }
 
-    const sendTime = getSendTime(unitType, distance, currentLandingTime);
+    const sendTime = getExactSendTime(unitType, distance, currentLandingTime);
     const serverTime = getServerTime();
     const travelTimeFormatted = formatTravelTime(unitType, distance);
 
@@ -580,8 +587,8 @@ function updateTravelTimeForVillage(villageRow, unitType, distance) {
     }
 }
 
-// Update all travel times
-function updateAllTravelTimes() {
+// Update all send times
+function updateAllSendTimes() {
     if (!currentLandingTime) {
         const landingTimeVal = jQuery('#raLandingTime').val();
         if (landingTimeVal && landingTimeVal.trim() !== '') {
@@ -603,7 +610,7 @@ function updateAllTravelTimes() {
 
         if (selectedUnitImg.length && !isNaN(distance)) {
             const unitType = selectedUnitImg.attr('data-unit-type');
-            updateTravelTimeForVillage(row, unitType, distance);
+            updateSendTimeForVillage(row, unitType, distance);
         }
     });
 }
@@ -629,7 +636,7 @@ function attachUnitSelectionHandler() {
             const unitType = jQuery(this).attr('data-unit-type');
 
             if (!isNaN(distance) && currentLandingTime) {
-                updateTravelTimeForVillage(row, unitType, distance);
+                updateSendTimeForVillage(row, unitType, distance);
             }
         } else {
             jQuery(this).removeClass('ra-selected-unit');
@@ -665,7 +672,7 @@ function attachLandingTimeHandler() {
         const landingTimeVal = jQuery(this).val().trim();
         if (landingTimeVal) {
             currentLandingTime = getLandingTime(landingTimeVal);
-            updateAllTravelTimes();
+            updateAllSendTimes();
         }
     });
 }
@@ -702,7 +709,7 @@ function attachCalculateHandler() {
             const plans = [];
 
             villagesUnitsToSend.forEach((item) => {
-                const sendTime = getSendTime(item.unit, item.distance, landingTime);
+                const sendTime = getExactSendTime(item.unit, item.distance, landingTime);
                 if (sendTime && sendTime >= getServerTime()) {
                     plans.push({
                         unit: item.unit,
@@ -797,7 +804,7 @@ function attachCommandClickHandler() {
 
         jQuery('#raLandingTime').val(formattedNewLandingTime);
         currentLandingTime = getLandingTime(formattedNewLandingTime);
-        updateAllTravelTimes();
+        updateAllSendTimes();
         UI.SuccessMessage(tt('Landing time was updated!'));
     });
 }
@@ -805,15 +812,14 @@ function attachCommandClickHandler() {
 // ============ INITIALIZATION ============
 
 async function init() {
-    console.debug('=== Single Village Planner v2.3.0 ===');
-    console.debug('Fetching world settings from API...');
+    console.debug('=== Single Village Planner v2.3.3 ===');
+    console.debug('NOTE: Only unit_speed from API affects travel time (building speed is ignored)');
 
     // Show loading message
     const loadingHtml = `
         <div id="raSingleVillagePlanner" style="margin:10px; padding:10px; border:1px solid #603000; background:#f4e4bc; text-align:center;">
             <h2>${tt('Single Village Planner')}</h2>
             <p>Loading world configuration and unit data...</p>
-            <p><img src="/graphic/loading.gif" /></p>
         </div>
     `;
     jQuery('#contentContainer').prepend(loadingHtml);
@@ -923,8 +929,7 @@ async function init() {
     jQuery('html,body').animate({ scrollTop: jQuery('#raSingleVillagePlanner').offset().top - 8 }, 'slow');
 
     console.debug('=== Initialization Complete ===');
-    console.debug(`World Speed: ${worldSpeed}x, Unit Speed: ${unitSpeedModifier}x`);
-    console.debug(`Effective Multiplier: ${worldSpeed * unitSpeedModifier}x`);
+    console.debug(`Unit Speed Modifier: ${unitSpeedModifier}x`);
 }
 
 // Start script
