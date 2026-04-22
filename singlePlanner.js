@@ -1,14 +1,14 @@
 /*
  * Script Name: Single Village Planner
- * Version: v2.3.3
- * Last Updated: 2025-08-15
+ * Version: v2.3.4
+ * Last Updated: 2026-04-22
  * Author: RedAlert
- * Mod: Asio - Corrected: only unit_speed affects travel time
+ * Mod: Asio - Fixed time calculations using proven method
  */
 
 var scriptData = {
     name: 'Single Village Planner',
-    version: 'v2.3.3',
+    version: 'v2.3.4',
     author: 'RedAlert',
     authorUrl: 'https://twscripts.dev/',
     helpLink: 'https://forum.tribalwars.net/index.php?threads/single-village-planner.286667/',
@@ -25,7 +25,8 @@ var unitInfo = null;
 var troopCounts = [];
 var currentDestinationVillage = '';
 var currentLandingTime = null;
-var unitSpeedModifier = 1.0;  // Only unit_speed matters for travel time
+var unitSpeedModifier = 1.0;
+var serverOffset = 0;  // Server offset in milliseconds
 
 // Translations
 var translations = {
@@ -117,95 +118,27 @@ function formatAsNumber(number) {
     return parseInt(number).toLocaleString('de');
 }
 
-// Helper: Get server time
-function getServerTime() {
-    const serverTime = jQuery('#serverTime').text();
-    const serverDate = jQuery('#serverDate').text();
-    const [day, month, year] = serverDate.split('/');
-    const serverTimeFormatted = year + '-' + month + '-' + day + ' ' + serverTime;
-    return new Date(serverTimeFormatted);
+// ============ SERVER TIME FUNCTIONS (from working script) ============
+
+function getServerDateTime() {
+    const serverTimeElement = $('#serverTime').closest('p');
+    const matches = serverTimeElement.text().match(/\d+/g);
+    if (!matches || matches.length < 6) return new Date();
+
+    const [hour, min, sec, day, month, year] = matches;
+    return new Date(year, (month - 1), day, hour, min, sec).getTime();
 }
 
-// Helper: Format date
-function formatDateTime(date) {
-    if (!date || isNaN(date.getTime())) return '';
-    let d = new Date(date);
-    let day = d.getDate().toString().padStart(2, '0');
-    let month = (d.getMonth() + 1).toString().padStart(2, '0');
-    let year = d.getFullYear();
-    let hours = d.getHours().toString().padStart(2, '0');
-    let minutes = d.getMinutes().toString().padStart(2, '0');
-    let seconds = d.getSeconds().toString().padStart(2, '0');
-    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-}
-
-// Helper: Get landing time date object
-function getLandingTime(landingTime) {
-    const [landingDay, landingHour] = landingTime.split(' ');
-    const [day, month, year] = landingDay.split('/');
-    const landingTimeFormatted = year + '-' + month + '-' + day + ' ' + landingHour;
-    return new Date(landingTimeFormatted);
-}
-
-// CORRECTED: Calculate distance between 2 villages - EXACT
-function calculateDistance(villageA, villageB) {
-    if (!villageA || !villageB) return 0;
-
-    // Parse coordinates as integers
-    const [x1, y1] = villageA.split('|').map(Number);
-    const [x2, y2] = villageB.split('|').map(Number);
-
-    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return 0;
-
-    // Calculate exact distance - NO ROUNDING
-    const deltaX = x1 - x2;
-    const deltaY = y1 - y2;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // Tribal Wars uses the EXACT distance for travel time calculation
-    // Do NOT round here - rounding should only happen for display
-    return distance;
-}
-
-// Get destination village coordinates
-function getDestinationVillage() {
-    let destinationVillage = '';
-
-    const selectors = [
-        '#content_value table table tr:eq(3) td:eq(1)',
-        '#content_value table table tr:nth-child(4) td:nth-child(2)',
-        '#content_value .vis tbody tr:eq(3) td:eq(1)',
-        '#content_value table table td:eq(2)',
-        '#content_value td:contains("|")'
-    ];
-
-    for (const selector of selectors) {
-        const element = jQuery(selector);
-        if (element.length) {
-            let text = element.text().trim();
-            const match = text.match(/(\d+)\|(\d+)/);
-            if (match) {
-                destinationVillage = match[0];
-                console.debug(`Found destination: ${destinationVillage}`);
-                break;
-            }
-        }
-    }
-
-    if (!destinationVillage) {
-        const pageText = jQuery('#content_value').html();
-        const coordMatch = pageText.match(/(\d+)\|(\d+)/);
-        if (coordMatch) {
-            destinationVillage = coordMatch[0];
-        }
-    }
-
-    return destinationVillage;
+function calculateServerOffset() {
+    const serverDateTime = getServerDateTime();
+    const localDateTime = new Date().getTime();
+    serverOffset = serverDateTime - localDateTime;
+    console.debug(`Server offset: ${serverOffset} ms (${serverOffset / 1000} seconds)`);
 }
 
 // ============ API FUNCTIONS ============
 
-// Fetch world configuration from API (only unit_speed matters)
+// Fetch world configuration from API
 async function fetchWorldConfigFromAPI() {
     console.debug('Fetching world configuration from API...');
 
@@ -216,32 +149,27 @@ async function fetchWorldConfigFromAPI() {
             dataType: 'xml',
             success: function(xml) {
                 const $xml = jQuery(xml);
-                // NOTE: <speed> is for BUILDINGS, not used for troop travel
-                // Only <unit_speed> matters for troop movement
                 const unitSpeed = parseFloat($xml.find('unit_speed').text());
 
                 if (!isNaN(unitSpeed)) unitSpeedModifier = unitSpeed;
 
-                console.debug(`API Config: Unit Speed=${unitSpeedModifier}x (affects travel time)`);
-                console.debug(`  unit_speed=1 = normal, 0.5 = half speed (double time), 2 = double speed (half time)`);
+                console.debug(`API Config: Unit Speed=${unitSpeedModifier}x`);
 
-                // Cache the config
                 localStorage.setItem(`${LS_PREFIX}_unit_speed_modifier`, unitSpeedModifier);
                 localStorage.setItem(`${LS_PREFIX}_config_timestamp`, Date.now());
 
                 resolve({ unitSpeedModifier });
             },
             error: function(xhr, status, error) {
-                console.error('Failed to fetch world config from API:', error);
+                console.error('Failed to fetch world config:', error);
                 const cachedUnitSpeed = localStorage.getItem(`${LS_PREFIX}_unit_speed_modifier`);
 
                 if (cachedUnitSpeed) {
                     unitSpeedModifier = parseFloat(cachedUnitSpeed);
-                    console.debug(`Using cached config: Unit Speed=${unitSpeedModifier}x`);
+                    console.debug(`Using cached: Unit Speed=${unitSpeedModifier}x`);
                     resolve({ unitSpeedModifier });
                 } else {
                     unitSpeedModifier = 1.0;
-                    console.warn('Using default: Unit Speed=1x');
                     resolve({ unitSpeedModifier });
                 }
             }
@@ -270,14 +198,6 @@ function fetchUnitInfoFromAPI() {
                 localStorage.setItem(`${LS_PREFIX}_unit_info`, JSON.stringify(unitInfo));
                 localStorage.setItem(`${LS_PREFIX}_last_updated`, Date.now());
                 console.debug('Unit info fetched from API');
-
-                // Log unit speeds for debugging
-                if (unitInfo && unitInfo.config) {
-                    console.debug('=== Unit Speeds (minutes per field at unit_speed=1) ===');
-                    for (const [unit, data] of Object.entries(unitInfo.config)) {
-                        console.debug(`  ${unit}: ${data.speed} min/field`);
-                    }
-                }
                 resolve();
             },
             error: function(error) {
@@ -302,44 +222,40 @@ function xml2json($xml) {
     return data;
 }
 
-// ============ TIME CALCULATION FUNCTIONS - CORRECTED ============
+// ============ TIME CALCULATION FUNCTIONS - USING PROVEN METHOD ============
 
-// Calculate EXACT travel time in milliseconds - NO ROUNDING ANYWHERE
+// Calculate EXACT travel time in milliseconds
 function getExactTravelTimeMs(unitType, exactDistance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
     }
 
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
-
-    // Use EXACT distance, NO ROUNDING
+    // Travel time in minutes = distance × base speed / unit speed modifier
     const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
+    // Convert to milliseconds
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
     return travelTimeMs;
 }
 
-// Calculate EXACT send time
-function getExactSendTime(unitType, distance, landingTime) {
-    const travelMs = getExactTravelTimeMs(unitType, distance);
+// Calculate send time using the PROVEN formula from working script
+// Formula: sendTime = landingTime - travelDuration + serverOffset
+function getExactSendTime(unitType, exactDistance, landingTime) {
+    const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return null;
 
-    // Subtract travel time from landing time
-    const sendTime = new Date(landingTime.getTime() - travelMs);
-
-    console.debug(`  Landing: ${landingTime.getTime()} ms (${formatDateTime(landingTime)})`);
-    console.debug(`  Travel:  ${travelMs} ms`);
-    console.debug(`  Send:    ${sendTime.getTime()} ms (${formatDateTime(sendTime)})`);
+    // CRITICAL: Add server offset to match Tribal Wars calculation
+    const sendTime = new Date(landingTime.getTime() - travelMs + serverOffset);
 
     return sendTime;
 }
 
-// Format travel time for display - ROUNDS for display ONLY
-function formatTravelTime(unitType, distance) {
-    const travelMs = getExactTravelTimeMs(unitType, distance);
+// Format travel time for tooltip
+function formatTravelTimeForDisplay(unitType, exactDistance) {
+    const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return '';
 
-    // Round to nearest second for display
     const totalSeconds = Math.round(travelMs / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -350,6 +266,82 @@ function formatTravelTime(unitType, distance) {
     if (minutes > 0 || hours > 0) result += `${minutes}m `;
     result += `${seconds}s`;
     return result.trim();
+}
+
+// ============ HELPER FUNCTIONS ============
+
+// Helper: Format date
+function formatDateTime(date) {
+    if (!date || isNaN(date.getTime())) return '';
+
+    let d = new Date(date);
+    let day = d.getDate().toString().padStart(2, '0');
+    let month = (d.getMonth() + 1).toString().padStart(2, '0');
+    let year = d.getFullYear();
+    let hours = d.getHours().toString().padStart(2, '0');
+    let minutes = d.getMinutes().toString().padStart(2, '0');
+    let seconds = d.getSeconds().toString().padStart(2, '0');
+
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
+
+// Helper: Get landing time date object
+function getLandingTime(landingTime) {
+    const [landingDay, landingHour] = landingTime.split(' ');
+    const [day, month, year] = landingDay.split('/');
+    const landingTimeFormatted = year + '-' + month + '-' + day + ' ' + landingHour;
+    return new Date(landingTimeFormatted);
+}
+
+// Helper: Calculate distance between 2 villages - EXACT
+function calculateDistance(villageA, villageB) {
+    if (!villageA || !villageB) return 0;
+    const partsA = villageA.split('|');
+    const partsB = villageB.split('|');
+    if (partsA.length !== 2 || partsB.length !== 2) return 0;
+
+    const x1 = parseInt(partsA[0]);
+    const y1 = parseInt(partsA[1]);
+    const x2 = parseInt(partsB[0]);
+    const y2 = parseInt(partsB[1]);
+    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return 0;
+
+    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+}
+
+// Get destination village coordinates
+function getDestinationVillage() {
+    let destinationVillage = '';
+
+    const selectors = [
+        '#content_value table table tr:eq(3) td:eq(1)',
+        '#content_value table table tr:nth-child(4) td:nth-child(2)',
+        '#content_value .vis tbody tr:eq(3) td:eq(1)',
+        '#content_value table table td:eq(2)',
+        '#content_value td:contains("|")'
+    ];
+
+    for (const selector of selectors) {
+        const element = jQuery(selector);
+        if (element.length) {
+            let text = element.text().trim();
+            const match = text.match(/(\d+)\|(\d+)/);
+            if (match) {
+                destinationVillage = match[0];
+                break;
+            }
+        }
+    }
+
+    if (!destinationVillage) {
+        const pageText = jQuery('#content_value').html();
+        const coordMatch = pageText.match(/(\d+)\|(\d+)/);
+        if (coordMatch) {
+            destinationVillage = coordMatch[0];
+        }
+    }
+
+    return destinationVillage;
 }
 
 // ============ DATA FETCHING FUNCTIONS ============
@@ -562,27 +554,18 @@ function renderGroupsFilter(groups) {
 
 // ============ UI UPDATE FUNCTIONS ============
 
-// Update send time display - USE EXACT DISTANCE
+// Update send time display for a village
 function updateSendTimeForVillage(villageRow, unitType, exactDistance) {
     const distanceCell = villageRow.find('td:eq(1)');
 
     if (!unitType || !currentLandingTime) {
-        const originalDistance = distanceCell.attr('data-original-distance');
-        distanceCell.html(originalDistance || exactDistance.toFixed(2));
+        distanceCell.html(exactDistance.toFixed(2));
         return;
     }
 
-    // Use the EXACT distance, not the rounded one
-    const travelTimeMs = getExactTravelTimeMs(unitType, exactDistance);
-    const sendTime = new Date(currentLandingTime.getTime() - travelTimeMs);
-    const serverTime = getServerTime();
-
-    // Calculate travel time for tooltip (rounded for display only)
-    const travelSeconds = Math.round(travelTimeMs / 1000);
-    const travelHours = Math.floor(travelSeconds / 3600);
-    const travelMinutes = Math.floor((travelSeconds % 3600) / 60);
-    const travelSecs = travelSeconds % 60;
-    const travelFormatted = `${travelHours > 0 ? travelHours + 'h ' : ''}${travelMinutes > 0 || travelHours > 0 ? travelMinutes + 'm ' : ''}${travelSecs}s`.trim();
+    const sendTime = getExactSendTime(unitType, exactDistance, currentLandingTime);
+    const serverTime = new Date(getServerDateTime());
+    const travelFormatted = formatTravelTimeForDisplay(unitType, exactDistance);
 
     if (sendTime && sendTime >= serverTime) {
         const formattedSendTime = formatDateTime(sendTime);
@@ -608,8 +591,7 @@ function updateAllSendTimes() {
     jQuery('#raAttackPlannerTable tbody tr').each(function() {
         const row = jQuery(this);
         const selectedUnitImg = row.find('img.ra-selected-unit').first();
-        // Get the EXACT distance from the data attribute
-        const exactDistance = parseFloat(row.data('exact-distance'));
+        const exactDistance = parseFloat(row.find('td:eq(1)').data('exact-distance'));
 
         if (selectedUnitImg.length && !isNaN(exactDistance)) {
             const unitType = selectedUnitImg.attr('data-unit-type');
@@ -618,7 +600,6 @@ function updateAllSendTimes() {
     });
 }
 
-
 // ============ EVENT HANDLERS ============
 
 // Unit selection handler
@@ -626,12 +607,7 @@ function attachUnitSelectionHandler() {
     jQuery('.ra-table td img').on('click', function() {
         const row = jQuery(this).closest('tr');
         const wasSelected = jQuery(this).hasClass('ra-selected-unit');
-        const distanceCell = row.find('td:eq(1)');
-        let distance = parseFloat(distanceCell.attr('data-original-distance'));
-
-        if (isNaN(distance)) {
-            distance = parseFloat(distanceCell.text());
-        }
+        const exactDistance = parseFloat(row.find('td:eq(1)').data('exact-distance'));
 
         if (!wasSelected) {
             row.find('img').not(this).removeClass('ra-selected-unit');
@@ -639,13 +615,12 @@ function attachUnitSelectionHandler() {
 
             const unitType = jQuery(this).attr('data-unit-type');
 
-            if (!isNaN(distance) && currentLandingTime) {
-                updateSendTimeForVillage(row, unitType, distance);
+            if (!isNaN(exactDistance) && currentLandingTime) {
+                updateSendTimeForVillage(row, unitType, exactDistance);
             }
         } else {
             jQuery(this).removeClass('ra-selected-unit');
-            const originalDistance = distanceCell.attr('data-original-distance');
-            distanceCell.html(parseFloat(originalDistance).toFixed(2));
+            row.find('td:eq(1)').html(exactDistance.toFixed(2));
         }
 
         const isAnyUnitSelected = row.find('img.ra-selected-unit').length > 0;
@@ -696,14 +671,16 @@ function attachCalculateHandler() {
             const unit = jQuery(this).attr('data-unit-type');
             const coords = jQuery(this).attr('data-village-coords');
             const isPrioVillage = jQuery(this).closest('tr').find('td .ra-priority-village').length > 0;
-            const distance = calculateDistance(coords, destinationVillage);
+            const exactDistance = parseFloat(jQuery(this).closest('tr').find('td:eq(1)').data('exact-distance'));
+
+            const distanceForCalc = !isNaN(exactDistance) ? exactDistance : calculateDistance(coords, destinationVillage);
 
             villagesUnitsToSend.push({
                 id: id,
                 unit: unit,
                 coords: coords,
                 highPrio: isPrioVillage,
-                distance: distance,
+                distance: distanceForCalc,
             });
         });
 
@@ -714,7 +691,7 @@ function attachCalculateHandler() {
 
             villagesUnitsToSend.forEach((item) => {
                 const sendTime = getExactSendTime(item.unit, item.distance, landingTime);
-                if (sendTime && sendTime >= getServerTime()) {
+                if (sendTime && sendTime >= new Date(getServerDateTime())) {
                     plans.push({
                         unit: item.unit,
                         coords: item.coords,
@@ -725,7 +702,11 @@ function attachCalculateHandler() {
                 }
             });
 
-            plans.sort((a, b) => new Date(a.launchTimeFormatted) - new Date(b.launchTimeFormatted));
+            plans.sort((a, b) => {
+                const timeA = new Date(a.launchTimeFormatted.split(' ').reverse().join(' '));
+                const timeB = new Date(b.launchTimeFormatted.split(' ').reverse().join(' '));
+                return timeA - timeB;
+            });
 
             if (plans.length > 0) {
                 const [toX, toY] = destinationVillage.split('|');
@@ -800,11 +781,7 @@ function attachCommandClickHandler() {
     jQuery('#commands_outgoings table tbody tr.command-row, #commands_incomings table tbody tr.command-row').on('click', function() {
         const commandLandingTime = parseInt(jQuery(this).find('td:eq(2) span').attr('data-endtime')) * 1000;
         const landingTimeDateTime = new Date(commandLandingTime);
-        const serverDateTime = getServerTime();
-        const localDateTime = new Date();
-        const diffTime = Math.abs(localDateTime - serverDateTime);
-        const newLandingTime = Math.ceil(Math.abs(landingTimeDateTime - diffTime));
-        const formattedNewLandingTime = formatDateTime(new Date(newLandingTime));
+        const formattedNewLandingTime = formatDateTime(landingTimeDateTime);
 
         jQuery('#raLandingTime').val(formattedNewLandingTime);
         currentLandingTime = getLandingTime(formattedNewLandingTime);
@@ -816,8 +793,10 @@ function attachCommandClickHandler() {
 // ============ INITIALIZATION ============
 
 async function init() {
-    console.debug('=== Single Village Planner v2.3.3 ===');
-    console.debug('NOTE: Only unit_speed from API affects travel time (building speed is ignored)');
+    console.debug('=== Single Village Planner v2.3.4 ===');
+
+    // Calculate server offset first
+    calculateServerOffset();
 
     // Show loading message
     const loadingHtml = `
@@ -828,13 +807,11 @@ async function init() {
     `;
     jQuery('#contentContainer').prepend(loadingHtml);
 
-    // Step 1: Fetch world config from API
+    // Fetch world config and unit info
     await fetchWorldConfigFromAPI();
-
-    // Step 2: Fetch unit info from API
     await fetchUnitInfoFromAPI();
 
-    // Step 3: Fetch villages and groups
+    // Fetch villages and groups
     const groups = await fetchVillageGroups();
     troopCounts = await fetchTroopsForCurrentGroup();
     let villages = await fetchAllPlayerVillagesByGroup(GROUP_ID);
@@ -845,12 +822,12 @@ async function init() {
         const exactDistance = calculateDistance(item.coords, currentDestinationVillage);
         return {
             ...item,
-            exactDistance: exactDistance,           // Store exact for calculations
-            distance: parseFloat(exactDistance.toFixed(2)),  // Rounded for display
+            exactDistance: exactDistance,
+            distance: parseFloat(exactDistance.toFixed(2)),
         };
     });
 
-    villages = villages.sort((a, b) => a.distance - b.distance);
+    villages = villages.sort((a, b) => a.exactDistance - b.exactDistance);
 
     const villagesTable = renderVillagesTable(villages);
     const groupsFilter = renderGroupsFilter(groups);
@@ -935,6 +912,7 @@ async function init() {
 
     console.debug('=== Initialization Complete ===');
     console.debug(`Unit Speed Modifier: ${unitSpeedModifier}x`);
+    console.debug(`Server Offset: ${serverOffset} ms`);
 }
 
 // Start script
