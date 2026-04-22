@@ -233,7 +233,7 @@ function xml2json($xml) {
 
 // ============ TIME CALCULATION FUNCTIONS - USING PROVEN METHOD ============
 
-// Calculate EXACT travel time in milliseconds
+// Calculate travel time - rounds to nearest second like the game
 function getExactTravelTimeMs(unitType, exactDistance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
         return null;
@@ -243,18 +243,22 @@ function getExactTravelTimeMs(unitType, exactDistance) {
     const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
-    return travelTimeMs;
+    // Game rounds travel time to nearest second
+    const roundedSeconds = Math.round(travelTimeMs / 1000);
+    const roundedTravelMs = roundedSeconds * 1000;
+
+    return roundedTravelMs;
 }
 
-// Calculate send time - EXACT MATCH to proven working script
+// Calculate send time - EXACT MATCH to game
 function getExactSendTime(unitType, exactDistance, landingTime) {
     const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return null;
 
-    // PROVEN FORMULA from the working script
+    // Formula from proven script: sendTime = landingTime - travelTime + serverOffset
     const rawSendTime = landingTime.getTime() - travelMs + serverOffset;
 
-    // Round to nearest millisecond (not floor, not ceil)
+    // Round to nearest millisecond
     const roundedSendTime = Math.round(rawSendTime);
 
     return new Date(roundedSendTime);
@@ -280,14 +284,12 @@ function formatTravelTimeForDisplay(unitType, exactDistance) {
 
 // ============ HELPER FUNCTIONS ============
 
-// Format date for display - rounds to nearest second
+// Format date - preserve milliseconds but display rounded seconds
 function formatDateTime(date) {
     if (!date || isNaN(date.getTime())) return '';
 
-    // Round to nearest second (matching proven script's behavior)
-    const roundedTime = Math.round(date.getTime() / 1000) * 1000;
-    const d = new Date(roundedTime);
-
+    // Use the date directly - don't re-round
+    let d = new Date(date);
     let day = d.getDate().toString().padStart(2, '0');
     let month = (d.getMonth() + 1).toString().padStart(2, '0');
     let year = d.getFullYear();
