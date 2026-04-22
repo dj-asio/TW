@@ -132,22 +132,18 @@ function getServerDateTime() {
     return new Date().getTime();
 }
 
+// Calculate server offset - rounded to nearest hour
 function calculateServerOffset() {
     const serverDateTime = getServerDateTime();
     const localDateTime = new Date().getTime();
 
-    // PROVEN SCRIPT: Round to nearest hour (36e5 = 3,600,000 ms = 1 hour)
     const diffMs = Math.abs(serverDateTime - localDateTime);
     const roundedHours = Math.round(diffMs / 36e5);
     const roundedOffsetMs = roundedHours * 3600 * 1000;
 
-    // Preserve the sign
     serverOffset = (serverDateTime - localDateTime) > 0 ? roundedOffsetMs : -roundedOffsetMs;
 
-    console.debug(`Server time: ${new Date(serverDateTime).toLocaleString()}`);
-    console.debug(`Local time: ${new Date(localDateTime).toLocaleString()}`);
-    console.debug(`Raw offset: ${serverDateTime - localDateTime} ms`);
-    console.debug(`Rounded offset (nearest hour): ${serverOffset} ms (${serverOffset / 1000} seconds)`);
+    console.debug(`Server offset: ${serverOffset} ms (${serverOffset / 1000} seconds)`);
 }
 
 // ============ API FUNCTIONS ============
@@ -255,16 +251,19 @@ function getExactTravelTimeMs(unitType, exactDistance) {
     return ceiledTravelMs;
 }
 
-// Calculate send time
+// Calculate send time - MATCH PROVEN SCRIPT EXACTLY
 function getExactSendTime(unitType, exactDistance, landingTime) {
     const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return null;
 
-    // Formula: sendTime = landingTime - travelTime + serverOffset
+    // Formula from proven script
     const rawSendTime = landingTime.getTime() - travelMs + serverOffset;
 
-    // Round to nearest millisecond
-    const finalTime = Math.round(rawSendTime);
+    // CRITICAL: Ceil to nearest second (proven script does this)
+    const ceiledSeconds = Math.ceil(rawSendTime / 1000);
+    const finalTime = ceiledSeconds * 1000;
+
+    console.debug(`Raw send: ${rawSendTime} ms → Ceiled to second: ${finalTime} ms`);
 
     return new Date(finalTime);
 }
@@ -289,7 +288,7 @@ function formatTravelTimeForDisplay(unitType, exactDistance) {
 
 // ============ HELPER FUNCTIONS ============
 
-// Format date - NO ADDITIONAL ROUNDING
+// Format date - preserve exact seconds
 function formatDateTime(date) {
     if (!date || isNaN(date.getTime())) return '';
 
@@ -362,6 +361,26 @@ function getDestinationVillage() {
 
     return destinationVillage;
 }
+
+// Debug comparison function
+function debugCompare(unitType, exactDistance, landingTimeStr) {
+    const landingTime = getLandingTime(landingTimeStr);
+    const travelMs = getExactTravelTimeMs(unitType, exactDistance);
+    const sendTime = getExactSendTime(unitType, exactDistance, landingTime);
+
+    console.debug('=== COMPARISON ===');
+    console.debug(`Distance: ${exactDistance}`);
+    console.debug(`Travel time (ms): ${travelMs}`);
+    console.debug(`Travel time (seconds): ${travelMs / 1000}`);
+    console.debug(`Landing time: ${landingTime.getTime()} ms`);
+    console.debug(`Server offset: ${serverOffset} ms`);
+    console.debug(`Raw send: ${landingTime.getTime() - travelMs + serverOffset} ms`);
+    console.debug(`Send time: ${formatDateTime(sendTime)}`);
+    console.debug('=================');
+}
+
+// Call this with your test values
+// debugCompare('ram', 16.492422502470642, '24/04/2026 20:00:00');
 
 // ============ DATA FETCHING FUNCTIONS ============
 
