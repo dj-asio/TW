@@ -305,27 +305,16 @@ function xml2json($xml) {
 // ============ TIME CALCULATION FUNCTIONS - CORRECTED ============
 
 // Calculate EXACT travel time in milliseconds - NO ROUNDING ANYWHERE
-function getExactTravelTimeMs(unitType, distance) {
+function getExactTravelTimeMs(unitType, exactDistance) {
     if (!unitInfo || !unitInfo.config || !unitInfo.config[unitType]) {
-        console.error(`No unit info for: ${unitType}`);
         return null;
     }
 
-    // Base speed from API (minutes per field)
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
 
-    // Apply unit speed modifier
-    // Formula: Travel time (minutes) = distance × baseSpeed / unitSpeed
-    const travelTimeMinutes = (distance * baseSpeedMinutes) / unitSpeedModifier;
-
-    // Convert to milliseconds - NO ROUNDING
+    // Use EXACT distance, NO ROUNDING
+    const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
-
-    // Debug output
-    console.debug(`[${unitType}] Distance: ${distance} (raw, unrounded)`);
-    console.debug(`  Base speed: ${baseSpeedMinutes} min/field`);
-    console.debug(`  Unit speed: ${unitSpeedModifier}x`);
-    console.debug(`  Travel: ${travelTimeMinutes} minutes = ${travelTimeMs} ms`);
 
     return travelTimeMs;
 }
@@ -528,7 +517,9 @@ function renderVillagesTable(villages) {
                         ${village.name} (${village.coords}) K${continent}
                     </a>
                 </td>
-                <td data-original-distance="${village.distance.toFixed(2)}">${village.distance.toFixed(2)}</td>
+                <td data-original-distance="${village.distance.toFixed(2)}" data-exact-distance="${village.exactDistance}">
+                    ${village.distance.toFixed(2)}
+                </td>
                 <td><span class="icon header favorite_add"></span></td>
                 <td><img data-unit-type="spear" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_spear.webp"><span>${formatAsNumber(village.spear)}</span></td>
                 <td><img data-unit-type="sword" data-village-id="${village.id}" data-village-coords="${village.coords}" src="/graphic/unit/unit_sword.webp"><span>${formatAsNumber(village.sword)}</span></td>
@@ -571,27 +562,35 @@ function renderGroupsFilter(groups) {
 
 // ============ UI UPDATE FUNCTIONS ============
 
-// Update send time display for a village
-function updateSendTimeForVillage(villageRow, unitType, distance) {
+// Update send time display - USE EXACT DISTANCE
+function updateSendTimeForVillage(villageRow, unitType, exactDistance) {
     const distanceCell = villageRow.find('td:eq(1)');
 
     if (!unitType || !currentLandingTime) {
         const originalDistance = distanceCell.attr('data-original-distance');
-        distanceCell.html(originalDistance || distance.toFixed(2));
+        distanceCell.html(originalDistance || exactDistance.toFixed(2));
         return;
     }
 
-    const sendTime = getExactSendTime(unitType, distance, currentLandingTime);
+    // Use the EXACT distance, not the rounded one
+    const travelTimeMs = getExactTravelTimeMs(unitType, exactDistance);
+    const sendTime = new Date(currentLandingTime.getTime() - travelTimeMs);
     const serverTime = getServerTime();
-    const travelTimeFormatted = formatTravelTime(unitType, distance);
+
+    // Calculate travel time for tooltip (rounded for display only)
+    const travelSeconds = Math.round(travelTimeMs / 1000);
+    const travelHours = Math.floor(travelSeconds / 3600);
+    const travelMinutes = Math.floor((travelSeconds % 3600) / 60);
+    const travelSecs = travelSeconds % 60;
+    const travelFormatted = `${travelHours > 0 ? travelHours + 'h ' : ''}${travelMinutes > 0 || travelHours > 0 ? travelMinutes + 'm ' : ''}${travelSecs}s`.trim();
 
     if (sendTime && sendTime >= serverTime) {
         const formattedSendTime = formatDateTime(sendTime);
-        distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">🕒 ${formattedSendTime}</span>`);
+        distanceCell.html(`<span style="color: green; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelFormatted}">🕒 ${formattedSendTime}</span>`);
     } else if (sendTime && sendTime < serverTime) {
-        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelTimeFormatted}">⚠️ ${tt('Send Time')} passed</span>`);
+        distanceCell.html(`<span style="color: red; font-weight: bold; cursor: help;" title="${tt('Travel Time')}: ${travelFormatted}">⚠️ ${tt('Send Time')} passed</span>`);
     } else {
-        distanceCell.html(distance.toFixed(2));
+        distanceCell.html(exactDistance.toFixed(2));
     }
 }
 
@@ -609,19 +608,16 @@ function updateAllSendTimes() {
     jQuery('#raAttackPlannerTable tbody tr').each(function() {
         const row = jQuery(this);
         const selectedUnitImg = row.find('img.ra-selected-unit').first();
-        const distanceCell = row.find('td:eq(1)');
-        let distance = parseFloat(distanceCell.attr('data-original-distance'));
+        // Get the EXACT distance from the data attribute
+        const exactDistance = parseFloat(row.data('exact-distance'));
 
-        if (isNaN(distance)) {
-            distance = parseFloat(distanceCell.text());
-        }
-
-        if (selectedUnitImg.length && !isNaN(distance)) {
+        if (selectedUnitImg.length && !isNaN(exactDistance)) {
             const unitType = selectedUnitImg.attr('data-unit-type');
-            updateSendTimeForVillage(row, unitType, distance);
+            updateSendTimeForVillage(row, unitType, exactDistance);
         }
     });
 }
+
 
 // ============ EVENT HANDLERS ============
 
@@ -846,10 +842,11 @@ async function init() {
     currentDestinationVillage = getDestinationVillage();
 
     villages = villages.map((item) => {
-        const distance = calculateDistance(item.coords, currentDestinationVillage);
+        const exactDistance = calculateDistance(item.coords, currentDestinationVillage);
         return {
             ...item,
-            distance: parseFloat(distance.toFixed(2)),
+            exactDistance: exactDistance,           // Store exact for calculations
+            distance: parseFloat(exactDistance.toFixed(2)),  // Rounded for display
         };
     });
 
