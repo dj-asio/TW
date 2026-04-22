@@ -121,19 +121,28 @@ function formatAsNumber(number) {
 // ============ SERVER TIME FUNCTIONS (from working script) ============
 
 function getServerDateTime() {
+    // Get the server time from the page
     const serverTimeElement = $('#serverTime').closest('p');
-    const matches = serverTimeElement.text().match(/\d+/g);
-    if (!matches || matches.length < 6) return new Date();
+    const text = serverTimeElement.text();
+    const matches = text.match(/\d+/g);
 
-    const [hour, min, sec, day, month, year] = matches;
-    return new Date(year, (month - 1), day, hour, min, sec).getTime();
+    if (matches && matches.length >= 6) {
+        const [hour, min, sec, day, month, year] = matches;
+        // Create date using local timezone (matches proven script)
+        return new Date(year, (month - 1), day, hour, min, sec).getTime();
+    }
+
+    return new Date().getTime();
 }
 
 function calculateServerOffset() {
     const serverDateTime = getServerDateTime();
     const localDateTime = new Date().getTime();
     serverOffset = serverDateTime - localDateTime;
+
     console.debug(`Server offset: ${serverOffset} ms (${serverOffset / 1000} seconds)`);
+    console.debug(`Server time: ${new Date(serverDateTime).toLocaleString()}`);
+    console.debug(`Local time: ${new Date(localDateTime).toLocaleString()}`);
 }
 
 // ============ API FUNCTIONS ============
@@ -231,24 +240,24 @@ function getExactTravelTimeMs(unitType, exactDistance) {
     }
 
     const baseSpeedMinutes = parseFloat(unitInfo.config[unitType].speed);
-    // Travel time in minutes = distance × base speed / unit speed modifier
     const travelTimeMinutes = (exactDistance * baseSpeedMinutes) / unitSpeedModifier;
-    // Convert to milliseconds
     const travelTimeMs = travelTimeMinutes * 60 * 1000;
 
     return travelTimeMs;
 }
 
-// Calculate send time using the PROVEN formula from working script
-// Formula: sendTime = landingTime - travelDuration + serverOffset
+// Calculate send time - EXACT MATCH to proven working script
 function getExactSendTime(unitType, exactDistance, landingTime) {
     const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return null;
 
-    // CRITICAL: Add server offset to match Tribal Wars calculation
-    const sendTime = new Date(landingTime.getTime() - travelMs + serverOffset);
+    // PROVEN FORMULA from the working script
+    const rawSendTime = landingTime.getTime() - travelMs + serverOffset;
 
-    return sendTime;
+    // Round to nearest millisecond (not floor, not ceil)
+    const roundedSendTime = Math.round(rawSendTime);
+
+    return new Date(roundedSendTime);
 }
 
 // Format travel time for tooltip
@@ -256,6 +265,7 @@ function formatTravelTimeForDisplay(unitType, exactDistance) {
     const travelMs = getExactTravelTimeMs(unitType, exactDistance);
     if (travelMs === null) return '';
 
+    // Round to nearest second for display
     const totalSeconds = Math.round(travelMs / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -270,11 +280,14 @@ function formatTravelTimeForDisplay(unitType, exactDistance) {
 
 // ============ HELPER FUNCTIONS ============
 
-// Helper: Format date
+// Format date for display - rounds to nearest second
 function formatDateTime(date) {
     if (!date || isNaN(date.getTime())) return '';
 
-    let d = new Date(date);
+    // Round to nearest second (matching proven script's behavior)
+    const roundedTime = Math.round(date.getTime() / 1000) * 1000;
+    const d = new Date(roundedTime);
+
     let day = d.getDate().toString().padStart(2, '0');
     let month = (d.getMonth() + 1).toString().padStart(2, '0');
     let year = d.getFullYear();
